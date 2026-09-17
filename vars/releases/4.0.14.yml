@@ -1,0 +1,51 @@
+apcm_version: 4.0.14
+payara_bundle_version: 5.82.0-4.0.14
+keycloak_bundle_version: 26.4-4.0.14
+nginx_bundle_version: REPLACE_ME
+keycloak_flavor: rh
+mongodb_version: 8.0.16
+artifacts:
+  adg_server:
+    name: apcm-adg-server-war-4.0.14.war
+    url: /opt/SOURCES/4.0.14/backend/apcm-adg-server-war-4.0.14.war
+    checksum: sha256:58aaf0569b42c87fcf5079c9c8fc470bd69906c617e04566ef68c383d18a51d2
+  apcm_server:
+    name: apcm-server-war-4.0.14.war
+    url: /opt/SOURCES/4.0.14/backend/apcm-server-war-4.0.14.war
+    checksum: sha256:cd4e59b25aefd9f4e7732888325425b6c801396b3ef68df5fae59548f1a32173
+  explorer_ear:
+    name: ampacimon-explorer-ear-4.0.14.ear
+    url: /opt/SOURCES/4.0.14/frontend/ampacimon-explorer-ear-4.0.14.ear
+    checksum: sha256:d6a5df239a23388e4edbcf42fe822a220d642fbce70307c381e4d7c529b4533b
+  rest_api:
+    name: ampacimon-rest-api-ms-4.0.14.war
+    url: /opt/SOURCES/4.0.14/frontend/ampacimon-rest-api-ms-4.0.14.war
+    checksum: sha256:8c35e930ff66b8140aa76ed528d131cdc3b1ea09a88d4851097cb1f8eb57ab02
+  jdk_back_linux:
+    name: zulu17.62.17-ca-jdk17.0.17-linux_x64.tar.gz
+    url: /opt/SOURCES/4.0.14/jdk/back/zulu17.62.17-ca-jdk17.0.17-linux_x64.tar.gz
+    checksum: sha256:1dcbbed73e95dc35f5c60402a84936f6830ff43c2a0dc0037a5657dbc25472c1
+  jdk_back_windows:
+    name: zulu17.62.17-ca-jdk17.0.17-win_x64.zip
+    url: /opt/SOURCES/4.0.14/jdk/back/zulu17.62.17-ca-jdk17.0.17-win_x64.zip
+    checksum: sha256:bd8a942bb543f109a28d3eadf3ec2f29a3ee28ab53506e31d2858292f63c6949
+  jdk_front_linux:
+    name: zulu17.66.19-ca-jdk17.0.19-linux_x64.tar.gz
+    url: /opt/SOURCES/4.0.14/jdk/front/zulu17.66.19-ca-jdk17.0.19-linux_x64.tar.gz
+    checksum: sha256:ad319aabe659c18fa63fadb446026a7c7f5260f02a6159f51195735d20e7aa1c
+  jdk_front_windows:
+    name: zulu17.66.19-ca-jdk17.0.19-win_x64.zip
+    url: /opt/SOURCES/4.0.14/jdk/front/zulu17.66.19-ca-jdk17.0.19-win_x64.zip
+    checksum: sha256:463c85454c45fd3827df7ccfaa2b14f136eb972387da697a349a42867334328a
+  keycloak_rh:
+    name: apcm-keycloak-bundle-26.4-4.0.14-Keycloak-RedHat.zip
+    url: /opt/SOURCES/4.0.14/keycloak/apcm-keycloak-bundle-26.4-4.0.14-Keycloak-RedHat.zip
+    checksum: sha256:c6ad22582ceaf102c0e7aeef7033d86921c266796c0c8022e6a324f704771ced
+  keycloak_standard:
+    name: apcm-keycloak-bundle-26.4-4.0.14-Keycloak.zip
+    url: /opt/SOURCES/4.0.14/keycloak/apcm-keycloak-bundle-26.4-4.0.14-Keycloak.zip
+    checksum: sha256:724bcc987aeca755f7a77cda9bff669ef86f32fdc285ed95eebdddf6bba5ed67
+  payara:
+    name: apcm-payara-bundle-5.82.0-4.0.14-payara-bundle.zip
+    url: /opt/SOURCES/4.0.14/payara/apcm-payara-bundle-5.82.0-4.0.14-payara-bundle.zip
+    checksum: sha256:41d86fe48aa20aa4c6b9e65fa4e209d4998c5f8ca092af93651fbc20da701e21

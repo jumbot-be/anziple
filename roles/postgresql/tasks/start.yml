@@ -1,0 +1,16 @@
+---
+- name: Setup PostgreSQL facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Start PostgreSQL (Linux)
+  ansible.builtin.service:
+    name: "{{ postgresql_service_name }}"
+    state: started
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Start PostgreSQL (Windows)
+  ansible.windows.win_service:
+    name: "{{ postgresql_service_name }}"
+    state: started
+  when: ansible_facts['os_family'] == 'Windows'

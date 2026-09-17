@@ -1,0 +1,16 @@
+---
+- name: Setup Nginx facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Start Nginx (Linux)
+  ansible.builtin.service:
+    name: "{{ nginx_service_name }}"
+    state: started
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Start Nginx (Windows)
+  ansible.windows.win_service:
+    name: "{{ nginx_service_name }}"
+    state: started
+  when: ansible_facts['os_family'] == 'Windows'

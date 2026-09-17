@@ -1,0 +1,9 @@
+---
+- name: Cleanup APCM Temporary Files
+  hosts: all
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+
+  roles:
+    - cleanup

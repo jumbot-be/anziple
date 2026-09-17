@@ -1,0 +1,6 @@
+# Keycloak specific configuration
+keycloak_flavor: "rh"
+keycloak_extract_dir_standard: "apcm-keycloak-bundle"
+keycloak_extract_dir_rh: "apcm-keycloak-bundle-rh"
+keycloak_extract_dir: "{{ (keycloak_flavor == 'rh') | ternary(keycloak_extract_dir_rh, keycloak_extract_dir_standard) }}"
+keycloak_port: 8443

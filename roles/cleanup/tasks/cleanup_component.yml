@@ -1,0 +1,22 @@
+---
+- name: Find versioned directories for {{ component_name }} (Linux)
+  ansible.builtin.find:
+    paths: "{{ adr_base_path_linux }}"
+    patterns: "{{ component_pattern }}*"
+    file_type: directory
+  register: component_dirs
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Sort and identify old directories to remove (Linux)
+  ansible.builtin.set_fact:
+    dirs_to_remove: "{{ (component_dirs.files | sort(attribute='mtime', reverse=true))[2:] }}"
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+    - component_dirs.matched > 2
+
+- name: Remove old versioned directories (Linux)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ dirs_to_remove | default([]) }}"
+  when: ansible_facts['os_family'] != 'Windows'

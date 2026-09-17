@@ -1,0 +1,12 @@
+---
+- name: Set OS fact
+  ansible.builtin.set_fact:
+    integrity_os_family: "{{ integrity_force_os | default(ansible_facts.get('os_family', 'Linux')) }}"
+
+- name: Include Linux tasks
+  ansible.builtin.include_tasks: linux.yml
+  when: integrity_os_family != 'Windows'
+
+- name: Include Windows tasks
+  ansible.builtin.include_tasks: windows.yml
+  when: integrity_os_family == 'Windows'

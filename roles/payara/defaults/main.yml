@@ -1,0 +1,6 @@
+# Payara specific configuration
+payara_db_host: "{{ postgresql_host }}"
+payara_db_name: "apcm"
+payara_db_user: "{{ postgresql_adr_customer_user | default('apcm') }}"
+payara_extract_dir: "apcm-payara-bundle"
+payara_port: 8080

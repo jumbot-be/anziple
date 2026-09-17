@@ -1,0 +1,69 @@
+# Installation paths
+ansible_validate_certs: true
+adr_base_path_linux: "/opt/adr"
+adr_base_path_windows: 'C:\adr'
+
+# Component Paths and Service Names
+keycloak_symlink_path_linux: "/opt/keycloak"
+keycloak_symlink_path_windows: 'C:\adr\keycloak'
+keycloak_service_name_linux: "keycloak"
+
+payara_symlink_path_linux: "/opt/payara"
+payara_symlink_path_windows: 'C:\adr\payara'
+
+nginx_service_name_linux: "nginx"
+nginx_symlink_path_linux: "/opt/nginx"
+mongodb_service_name_linux: "mongod"
+mongodb_symlink_path_linux: "/opt/mongodb"
+postgresql_service_name_linux: "postgresql"
+postgresql_symlink_path_linux: "/opt/postgresql"
+
+# Postfix Configuration
+postfix_relay_host: "REPLACE_ME_RELAY_IP"
+postfix_relay_port: "587"
+postfix_relay_user: "REPLACE_ME_USER"
+postfix_relay_password: "tototototo"
+postfix_from_address: "REPLACE_ME_FROM@example.com"
+postfix_enabled: false
+
+# Default Release (can be overridden with -e @vars/releases/X.Y.Z.yml)
+# Currently points to 4.0.9 as the latest default.
+# NOTE: Version-specific variables and checksums are now moved to vars/releases/
+include_release_vars: "vars/releases/4.0.9.yml"
+
+# Multi-server Service Discovery
+# Logic: use specific groups if defined, otherwise fallback to backend or all hosts.
+postgresql_host: "{{ (groups['database_servers'] | default([]) | length > 0) | ternary(groups['database_servers'] | first, (groups['backend_servers'] | default([]) | length > 0) | ternary(groups['backend_servers'] | first, 'localhost')) }}"
+mongodb_host: "{{ (groups['database_servers'] | default([]) | length > 0) | ternary(groups['database_servers'] | first, (groups['backend_servers'] | default([]) | length > 0) | ternary(groups['backend_servers'] | first, 'localhost')) }}"
+#keycloak_host: "{{ (groups['frontend_servers'] | default([]) | length > 0) | ternary(groups['frontend_servers'] | first, 'localhost') }}"
+
+### avoid deploying keycloak on backend servers
+keycloak_host: >-
+  {{
+    (groups['frontend_servers'] | default([]) | length > 0)
+    | ternary(
+      groups['frontend_servers'] | first,
+      'localhost'
+    )
+    if inventory_hostname not in groups['backend_servers']
+    else 'disabled'
+  }}
+
+
+backend_payara_host: "{{ (groups['backend_servers'] | default([]) | length > 0) | ternary(groups['backend_servers'] | first, 'localhost') }}"
+
+# Network Security
+# Default range allowed to connect to databases (PostgreSQL/MongoDB)
+# In multi-server setup, this should be set to your internal subnet (e.g., 10.0.0.0/24)
+allowed_network_range: "127.0.0.1/32"
+
+# MongoDB bind interfaces (e.g., "127.0.0.1,10.0.0.2")
+# Default to listening on all interfaces in multi-server, but restricted via firewall or allowed_network_range logic if possible.
+# Here we use a variable for manual control.
+mongodb_bind_ips: "127.0.0.1"
+
+# PostgreSQL Configuration
+customer_name: "customer"
+postgresql_version: "14"
+postgresql_admin_user: "adr_superadmin"
+postgresql_enabled: false

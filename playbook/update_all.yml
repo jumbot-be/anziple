@@ -1,0 +1,76 @@
+---
+- name: Update All APCM Components
+  hosts: all
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+
+  tasks:
+    - name: Stop all application services
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+        tasks_from: stop
+      loop:
+        - nginx
+        - payara
+        - keycloak
+      tags: [stop-all, update-all]
+
+    - name: Update Common Components (JDK)
+      ansible.builtin.include_role:
+        name: common
+      tags: [common, jdk, update-all]
+
+    - name: Update PostgreSQL
+      ansible.builtin.include_role:
+        name: postgresql
+        tasks_from: update
+      tags: [postgresql, update-all]
+
+    - name: Update MongoDB
+      ansible.builtin.include_role:
+        name: mongodb
+        tasks_from: update
+      tags: [mongodb, update-all]
+
+    - name: Update Keycloak (Update and Start)
+      block:
+        - name: Update Keycloak
+          ansible.builtin.include_role:
+            name: keycloak
+            tasks_from: main
+        - name: Start Keycloak
+          ansible.builtin.include_role:
+            name: keycloak
+            tasks_from: start
+      tags: [keycloak, update-all]
+
+    - name: Update Payara (Update and Start)
+      block:
+        - name: Update Payara
+          ansible.builtin.include_role:
+            name: payara
+            tasks_from: main
+        - name: Start Payara
+          ansible.builtin.include_role:
+            name: payara
+            tasks_from: start
+      tags: [payara, update-all]
+
+    - name: Update Nginx (Update and Start)
+      block:
+        - name: Update Nginx
+          ansible.builtin.include_role:
+            name: nginx
+            tasks_from: main
+        - name: Start Nginx
+          ansible.builtin.include_role:
+            name: nginx
+            tasks_from: start
+      tags: [nginx, update-all]
+
+    - name: Cleanup temporary files
+      ansible.builtin.include_role:
+        name: cleanup
+      tags: [cleanup, update-all]

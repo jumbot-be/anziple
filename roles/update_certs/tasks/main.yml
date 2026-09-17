@@ -1,0 +1,22 @@
+---
+- name: Setup update_certs facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Download files from S3 if needed
+  ansible.builtin.include_tasks: download.yml
+  when:
+    - update_certs_enabled | default(false)
+    - use_s3_cert or use_s3_key
+
+- name: Include Linux tasks
+  ansible.builtin.include_tasks: linux.yml
+  when:
+    - update_certs_enabled | default(false)
+    - ansible_facts['os_family'] != 'Windows'
+
+- name: Include Windows tasks
+  ansible.builtin.include_tasks: windows.yml
+  when:
+    - update_certs_enabled | default(false)
+    - ansible_facts['os_family'] == 'Windows'

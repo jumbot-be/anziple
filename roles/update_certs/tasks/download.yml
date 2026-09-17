@@ -1,0 +1,53 @@
+---
+- name: Ensure temp directory exists (Linux)
+  ansible.builtin.file:
+    path: "{{ update_certs_temp_dir }}"
+    state: directory
+    mode: '0755'
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Ensure temp directory exists (Windows)
+  ansible.windows.win_file:
+    path: "{{ update_certs_temp_dir }}"
+    state: directory
+  when: ansible_facts['os_family'] == 'Windows'
+
+- name: Download certificate from S3 (Linux)
+  amazon.aws.aws_s3:
+    bucket: "{{ update_certs_cert_s3_bucket }}"
+    object: "{{ update_certs_cert_s3_object }}"
+    dest: "{{ update_certs_temp_dir }}/{{ cert_filename }}"
+    mode: get
+  when:
+    - use_s3_cert
+    - ansible_facts['os_family'] != 'Windows'
+
+- name: Download key from S3 (Linux)
+  amazon.aws.aws_s3:
+    bucket: "{{ update_certs_key_s3_bucket }}"
+    object: "{{ update_certs_key_s3_object }}"
+    dest: "{{ update_certs_temp_dir }}/{{ key_filename }}"
+    mode: get
+  when:
+    - use_s3_key
+    - ansible_facts['os_family'] != 'Windows'
+
+- name: Download certificate from S3 (Windows)
+  amazon.aws.aws_s3:
+    bucket: "{{ update_certs_cert_s3_bucket }}"
+    object: "{{ update_certs_cert_s3_object }}"
+    dest: "{{ update_certs_temp_dir }}\\{{ cert_filename }}"
+    mode: get
+  when:
+    - use_s3_cert
+    - ansible_facts['os_family'] == 'Windows'
+
+- name: Download key from S3 (Windows)
+  amazon.aws.aws_s3:
+    bucket: "{{ update_certs_key_s3_bucket }}"
+    object: "{{ update_certs_key_s3_object }}"
+    dest: "{{ update_certs_temp_dir }}\\{{ key_filename }}"
+    mode: get
+  when:
+    - use_s3_key
+    - ansible_facts['os_family'] == 'Windows'

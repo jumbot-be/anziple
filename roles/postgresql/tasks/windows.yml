@@ -1,0 +1,95 @@
+---
+- name: Install PostgreSQL (Windows)
+  block:
+    - name: Ensure PostgreSQL install directory exists
+      ansible.windows.win_file:
+        path: 'C:\adr\PostgreSQL'
+        state: directory
+
+    - name: Copy PostgreSQL installer to target
+      ansible.windows.win_copy:
+        src: "{{ artifacts.postgresql_windows.url }}"
+        dest: "{{ ansible_facts['env']['TEMP'] }}\\{{ artifacts.postgresql_windows.name }}"
+
+    - name: Install PostgreSQL via EXE
+      ansible.windows.win_package:
+        path: "{{ ansible_facts['env']['TEMP'] }}\\{{ artifacts.postgresql_windows.name }}"
+        state: present
+        arguments:
+          - --mode
+          - unattended
+          - --unattendedmodeui
+          - none
+          - --prefix
+          - 'C:\Program Files\PostgreSQL\{{ postgresql_version }}'
+          - --datadir
+          - "{{ postgresql_data_path_windows }}"
+          - --superpassword
+          - "{{ postgresql_admin_password }}"
+          - --serverport
+          - "5432"
+          - --locale
+          - "{{ postgresql_windows_collation }}"
+
+    - name: Add PostgreSQL bin to PATH
+      ansible.windows.win_path:
+        elements: "{{ postgresql_bin_path_windows }}"
+        state: present
+
+    - name: Ensure PostgreSQL service is started (Windows)
+      ansible.windows.win_service:
+        name: "postgresql-x64-{{ postgresql_version }}"
+        state: started
+        start_mode: auto
+
+    - name: Allow remote connections in postgresql.conf (Windows)
+      ansible.windows.win_lineinfile:
+        path: "{{ postgresql_data_path_windows }}\\postgresql.conf"
+        regexp: "^#?listen_addresses\\s*="
+        line: "listen_addresses = '*'"
+      notify: Restart PostgreSQL
+
+    - name: Allow remote connections in pg_hba.conf (Windows)
+      ansible.windows.win_lineinfile:
+        path: "{{ postgresql_data_path_windows }}\\pg_hba.conf"
+        line: "host    all             all             {{ allowed_network_range }}               md5"
+        insertafter: EOF
+      notify: Restart PostgreSQL
+
+- name: Configure PostgreSQL Users and Databases
+  block:
+    - name: Create Super Admin User (Windows)
+      ansible.windows.win_shell: |
+        $env:PGPASSWORD = "{{ postgresql_admin_password }}"
+        & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "DO {{ '$$' }} BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ postgresql_admin_user }}') THEN CREATE ROLE {{ postgresql_admin_user }} WITH SUPERUSER LOGIN PASSWORD '{{ postgresql_admin_password }}'; END IF; END {{ '$$' }};"
+      no_log: true
+
+    - name: Create ADR Customer User (Windows)
+      ansible.windows.win_shell: |
+        $env:PGPASSWORD = "{{ postgresql_admin_password }}"
+        & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "DO {{ '$$' }} BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ postgresql_adr_customer_user }}') THEN CREATE ROLE \"{{ postgresql_adr_customer_user }}\" WITH LOGIN PASSWORD '{{ postgresql_adr_customer_password }}'; END IF; END {{ '$$' }};"
+      no_log: true
+
+    - name: Create ADR Customer Database (Windows)
+      ansible.windows.win_shell: |
+        $env:PGPASSWORD = "{{ postgresql_admin_password }}"
+        $dbExists = & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ postgresql_adr_db_name }}'"
+        if ($dbExists -ne "1") {
+            & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "CREATE DATABASE \"{{ postgresql_adr_db_name }}\" OWNER \"{{ postgresql_adr_customer_user }}\" LC_COLLATE = '{{ postgresql_collation }}' LC_CTYPE = '{{ postgresql_collation }}';"
+        }
+      no_log: true
+
+    - name: Create Keycloak User (Windows)
+      ansible.windows.win_shell: |
+        $env:PGPASSWORD = "{{ postgresql_admin_password }}"
+        & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "DO {{ '$$' }} BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ postgresql_keycloak_user }}') THEN CREATE ROLE \"{{ postgresql_keycloak_user }}\" WITH LOGIN PASSWORD '{{ postgresql_adr_keycloak_password }}'; END IF; END {{ '$$' }};"
+      no_log: true
+
+    - name: Create Keycloak Database (Windows)
+      ansible.windows.win_shell: |
+        $env:PGPASSWORD = "{{ postgresql_admin_password }}"
+        $dbExists = & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '{{ postgresql_keycloak_db_name }}'"
+        if ($dbExists -ne "1") {
+            & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "CREATE DATABASE \"{{ postgresql_keycloak_db_name }}\" OWNER \"{{ postgresql_keycloak_user }}\" LC_COLLATE = '{{ postgresql_collation }}' LC_CTYPE = '{{ postgresql_collation }}';"
+        }
+      no_log: true

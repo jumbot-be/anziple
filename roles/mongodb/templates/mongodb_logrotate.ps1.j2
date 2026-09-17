@@ -1,0 +1,49 @@
+# PowerShell script for MongoDB Log Rotation
+# Managed by Ansible
+
+$LogPath = "{{ mongodb_log_path_windows }}"
+$LogDir = [System.IO.Path]::GetDirectoryName($LogPath)
+$LogFile = [System.IO.Path]::GetFileName($LogPath)
+$MongoBin = "{{ mongodb_bin_path_windows }}\mongosh.exe"
+$Username = "{{ mongodb_admin_user }}"
+$Password = "{{ mongodb_admin_password | replace('$', '`$') }}"
+$RetentionDays = 30
+
+Write-Output "Starting MongoDB log rotation..."
+
+# 1. Trigger MongoDB Log Rotation
+# Use try-catch to handle connection issues
+try {
+    & $MongoBin --port 27017 -u $Username -p $Password --authenticationDatabase admin --eval "db.adminCommand({ logRotate: 1 })" --quiet
+} catch {
+    Write-Error "Failed to trigger log rotation: $_"
+    exit 1
+}
+
+# 2. Give it a second to settle
+Start-Sleep -Seconds 5
+
+# 3. Find rotated log files (e.g., mongod.log.2023-10-27T...)
+# MongoDB with logRotate: rename creates files with timestamp suffix
+$RotatedFiles = Get-ChildItem -Path $LogDir -Filter "$LogFile.*" | Where-Object { $_.Name -ne $LogFile -and $_.Extension -notmatch "zip" }
+
+foreach ($File in $RotatedFiles) {
+    $ZipFile = "$($File.FullName).zip"
+    Write-Output "Compressing $($File.Name) to $($File.Name).zip"
+    try {
+        Compress-Archive -Path $File.FullName -DestinationPath $ZipFile -Force -ErrorAction Stop
+        Remove-Item $File.FullName -ErrorAction Stop
+    } catch {
+        Write-Warning "Failed to compress or remove $($File.FullName): $_"
+    }
+}
+
+# 4. Cleanup old zip files
+$OldZips = Get-ChildItem -Path $LogDir -Filter "$LogFile.*.zip" | Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-$RetentionDays) }
+
+foreach ($Zip in $OldZips) {
+    Write-Output "Removing old log archive: $($Zip.Name)"
+    Remove-Item $Zip.FullName -ErrorAction SilentlyContinue
+}
+
+Write-Output "Log rotation completed."

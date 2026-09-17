@@ -1,0 +1,156 @@
+---
+- name: Install PostgreSQL (Linux)
+  block:
+    - name: Install dependencies (gnupg, curl)
+      ansible.builtin.apt:
+        name:
+          - gnupg
+          - curl
+          - locales
+          - python3-psycopg2
+          - lsof
+        state: present
+        update_cache: true
+
+    - name: Ensure locales exist
+      ansible.builtin.shell: |
+        locale-gen {{ postgresql_linux_collation }} || true
+        locale-gen {{ postgresql_linux_collation_lower }} || true
+      changed_when: true
+
+    - name: Download PostgreSQL GPG key
+      ansible.builtin.shell: |
+        curl -k {{ postgresql_apt_key_url }} -o /tmp/postgresql.asc
+        chmod 0644 /tmp/postgresql.asc
+      args:
+        executable: /bin/bash
+        creates: /tmp/postgresql.asc
+
+    - name: Dearmor PostgreSQL GPG key
+      ansible.builtin.shell: |
+        set -o pipefail
+        cat /tmp/postgresql.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
+      args:
+        executable: /bin/bash
+        creates: /usr/share/keyrings/postgresql-archive-keyring.gpg
+
+    - name: Create PostgreSQL list file
+      ansible.builtin.copy:
+        content: "deb [ arch=amd64 signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg trusted=yes ] {{ postgresql_apt_repo_url }} {{ ansible_facts['distribution_release'] }}-pgdg main"
+        dest: /etc/apt/sources.list.d/pgdg.list
+        mode: '0644'
+
+    - name: Install PostgreSQL 14
+      ansible.builtin.apt:
+        name:
+          - "postgresql-{{ postgresql_version }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure PostgreSQL is started and enabled
+      ansible.builtin.service:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Allow remote connections in postgresql.conf
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
+        regexp: "^#?listen_addresses\\s*="
+        line: "listen_addresses = '*'"
+      notify: Restart PostgreSQL
+
+    - name: Allow remote connections in pg_hba.conf
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
+        line: "host    all             all             {{ allowed_network_range }}               md5"
+        insertafter: EOF
+      notify: Restart PostgreSQL
+
+    - name: Wait for PostgreSQL port (5432)
+      ansible.builtin.wait_for:
+        port: 5432
+        host: 127.0.0.1
+        state: started
+        timeout: 10
+
+    - name: Create Ansible remote_tmp directory for postgres user
+      ansible.builtin.file:
+        path: /var/lib/postgresql/.ansible/tmp
+        state: directory
+        mode: '0700'
+        owner: postgres
+        group: postgres
+
+    - name: Create PostgreSQL symbolic link (Linux)
+      ansible.builtin.file:
+        src: "/var/lib/postgresql/{{ postgresql_version }}/main"
+        dest: "{{ postgresql_symlink_path_linux }}"
+        state: link
+        force: true
+
+- name: Configure PostgreSQL Users and Databases
+  block:
+    - name: Create Super Admin User
+      community.postgresql.postgresql_user:
+        name: "{{ postgresql_admin_user }}"
+        password: "{{ postgresql_admin_password }}"
+        role_attr_flags: SUPERUSER
+        login_user: postgres
+      no_log: true
+
+    - name: Create ADR Customer User
+      community.postgresql.postgresql_user:
+        name: "{{ postgresql_adr_customer_user }}"
+        password: "{{ postgresql_adr_customer_password }}"
+        login_user: postgres
+      no_log: true
+
+    - name: Get available locales
+      ansible.builtin.command: locale -a
+      register: available_locales
+      changed_when: false
+
+    - name: Set active collation fact
+      ansible.builtin.set_fact:
+        postgresql_active_collation: >-
+          {%- if postgresql_linux_collation in available_locales.stdout_lines -%}
+            {{ postgresql_linux_collation }}
+          {%- elif postgresql_linux_collation_lower in available_locales.stdout_lines -%}
+            {{ postgresql_linux_collation_lower }}
+          {%- elif 'en_US.utf8' in available_locales.stdout_lines -%}
+            en_US.utf8
+          {%- elif 'en_US.UTF-8' in available_locales.stdout_lines -%}
+            en_US.UTF-8
+          {%- else -%}
+            C.UTF-8
+          {%- endif -%}
+
+    - name: Create ADR Customer Database
+      community.postgresql.postgresql_db:
+        name: "{{ postgresql_adr_db_name }}"
+        owner: "{{ postgresql_adr_customer_user }}"
+        encoding: UTF8
+        lc_collate: "{{ postgresql_active_collation }}"
+        lc_ctype: "{{ postgresql_active_collation }}"
+        template: template0
+        login_user: postgres
+
+    - name: Create Keycloak User
+      community.postgresql.postgresql_user:
+        name: "{{ postgresql_keycloak_user }}"
+        password: "{{ postgresql_adr_keycloak_password }}"
+        login_user: postgres
+      no_log: true
+
+    - name: Create Keycloak Database
+      community.postgresql.postgresql_db:
+        name: "{{ postgresql_keycloak_db_name }}"
+        owner: "{{ postgresql_keycloak_user }}"
+        encoding: UTF8
+        lc_collate: "{{ postgresql_active_collation }}"
+        lc_ctype: "{{ postgresql_active_collation }}"
+        template: template0
+        login_user: postgres
+  become: true
+  become_user: postgres

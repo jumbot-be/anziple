@@ -1,0 +1,75 @@
+---
+- name: Download Keycloak bundle
+  ansible.builtin.include_role:
+    name: integrity
+  vars:
+    integrity_artifact_url: "{{ keycloak_artifact.get('url', '') }}"
+    integrity_artifact_dest: "{{ keycloak_bundle_dest | default('') }}"
+    integrity_artifact_checksum: "{{ keycloak_artifact.get('checksum', '') }}"
+    integrity_validate_certs: "{{ keycloak_artifact.get('validate_certs', true) }}"
+  when: keycloak_artifact and keycloak_artifact.get('url')
+
+- name: Create versioned directory (Windows)
+  ansible.windows.win_file:
+    path: "{{ keycloak_extract_path }}"
+    state: directory
+
+- name: Extract Keycloak bundle (Windows)
+  ansible.windows.win_shell: |
+    Expand-Archive -Path "{{ keycloak_bundle_dest }}" -DestinationPath "{{ keycloak_extract_path }}_tmp" -Force
+    $subDir = Get-ChildItem -Path "{{ keycloak_extract_path }}_tmp" -Directory | Select-Object -First 1
+    Move-Item -Path "$($subDir.FullName)\*" -Destination "{{ keycloak_extract_path }}" -Force
+    Remove-Item -Path "{{ keycloak_extract_path }}_tmp" -Recurse -Force
+
+- name: Create profiles/ansible directory (Windows)
+  ansible.windows.win_file:
+    path: "{{ keycloak_extract_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible"
+    state: directory
+
+- name: Template config.properties
+  ansible.builtin.template:
+    src: config.properties.j2
+    dest: "{{ keycloak_extract_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible{{ keycloak_sep }}config.properties"
+
+- name: Run prepare-config.sh (Windows)
+  ansible.windows.win_shell:
+    executable: "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+    cmd: "./prepare-config.sh ansible"
+    chdir: "{{ keycloak_extract_path }}"
+  environment:
+    JAVA_HOME: "{{ keycloak_java_home | default(common_java_home) | default('') }}"
+  changed_when: true
+
+- name: Create Keycloak symbolic link (Windows)
+  ansible.windows.win_file:
+    src: "{{ keycloak_extract_path }}"
+    dest: "{{ keycloak_symlink_path }}"
+    state: link
+    force: true
+
+- name: Find mandatory scripts
+  ansible.builtin.find:
+    paths: "{{ keycloak_extract_path }}"
+    patterns: "[1-9]*-keycloak--*.sh"
+  register: keycloak_mandatory_scripts
+
+# - name: Run mandatory scripts (Windows)
+#   ansible.windows.win_shell:
+#     executable: "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+#     cmd: "./{{ item.path | basename }}"
+#     chdir: "{{ keycloak_extract_path }}"
+#   environment:
+#     JAVA_HOME: "{{ common_java_home | default('') }}"
+#   loop: "{{ keycloak_mandatory_scripts.files | sort(attribute='path') }}"
+#   changed_when: true
+
+- name: Verify Keycloak extraction (Windows)
+  ansible.windows.win_stat:
+    path: "{{ keycloak_extract_path }}\\keycloak"
+  register: keycloak_verify_stat_win
+
+- name: Assert Keycloak is present (Windows)
+  ansible.builtin.assert:
+    that:
+      - keycloak_verify_stat_win.stat.exists
+    msg: "Keycloak server not found at {{ keycloak_extract_path }}\\keycloak"

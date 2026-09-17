@@ -1,0 +1,53 @@
+---
+- name: Set update_certs facts
+  ansible.builtin.set_fact:
+    update_certs_enabled: "{{ update_certs_enabled | default(false) }}"
+    update_certs_cert_dest: "{{ update_certs_cert_dest | default('/etc/ssl/certs') }}"
+    update_certs_cert_src: "{{ update_certs_cert_src | default('') }}"
+    update_certs_key_dest: "{{ update_certs_key_dest | default('/etc/ssl/private') }}"
+    update_certs_key_src: "{{ update_certs_key_src | default('') }}"
+    update_certs_cert_s3_bucket: "{{ update_certs_cert_s3_bucket | default('') }}"
+    update_certs_cert_s3_object: "{{ update_certs_cert_s3_object | default('') }}"
+    update_certs_key_s3_bucket: "{{ update_certs_key_s3_bucket | default('') }}"
+    update_certs_key_s3_object: "{{ update_certs_key_s3_object | default('') }}"
+    update_certs_temp_dir: "{{ update_certs_temp_dir | default('/tmp/certs') }}"
+    update_certs_owner: "{{ update_certs_owner | default('root') }}"
+    update_certs_group: "{{ update_certs_group | default('root') }}"
+    update_certs_mode: "{{ update_certs_mode | default('0644') }}"
+
+- name: Set effective source paths
+  ansible.builtin.set_fact:
+    effective_cert_src: >
+      {% if update_certs_cert_s3_bucket and update_certs_cert_s3_object %}
+        "s3://{{ update_certs_cert_s3_bucket }}/{{ update_certs_cert_s3_object }}"
+      {% elif update_certs_cert_src %}
+        "{{ update_certs_cert_src }}"
+      {% else %}
+        ""
+      {% endif %}
+    effective_key_src: >
+      {% if update_certs_key_s3_bucket and update_certs_key_s3_object %}
+        "s3://{{ update_certs_key_s3_bucket }}/{{ update_certs_key_s3_object }}"
+      {% elif update_certs_key_src %}
+        "{{ update_certs_key_src }}"
+      {% else %}
+        ""
+      {% endif %}
+    use_s3_cert: "{{ (update_certs_cert_s3_bucket and update_certs_cert_s3_object) | bool }}"
+    use_s3_key: "{{ (update_certs_key_s3_bucket and update_certs_key_s3_object) | bool }}"
+    cert_filename: >
+      {% if update_certs_cert_s3_object %}
+        "{{ update_certs_cert_s3_object | basename }}"
+      {% elif update_certs_cert_src %}
+        "{{ update_certs_cert_src | basename }}"
+      {% else %}
+        ""
+      {% endif %}
+    key_filename: >
+      {% if update_certs_key_s3_object %}
+        "{{ update_certs_key_s3_object | basename }}"
+      {% elif update_certs_key_src %}
+        "{{ update_certs_key_src | basename }}"
+      {% else %}
+        ""
+      {% endif %}

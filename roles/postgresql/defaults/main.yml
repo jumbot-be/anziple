@@ -1,0 +1,9 @@
+---
+postgresql_linux_collation: "en_US.UTF-8"
+postgresql_windows_collation: "English_United States.1252"
+
+postgresql_apt_repo_url: "http://apt.postgresql.org/pub/repos/apt/"
+postgresql_apt_key_url: "https://www.postgresql.org/media/keys/ACCC4CF8.asc"
+
+postgresql_bin_path_windows: 'C:\Program Files\PostgreSQL\{{ postgresql_version }}\bin'
+postgresql_data_path_windows: 'C:\adr\PostgreSQL\data'

@@ -1,0 +1,24 @@
+# mongod.conf
+systemLog:
+  destination: file
+  logAppend: true
+  path: {{ (ansible_facts['os_family'] == 'Windows') | ternary(mongodb_log_path_windows, mongodb_log_path_linux) }}
+  logRotate: {{ (ansible_facts['os_family'] == 'Windows') | ternary('rename', 'reopen') }}
+
+storage:
+  dbPath: {{ (ansible_facts['os_family'] == 'Windows') | ternary('C:\\data\\db', '/var/lib/mongodb') }}
+
+net:
+  port: 27017
+  bindIp: "{{ mongodb_bind_ips }}"
+  tls:
+    mode: requireTLS
+    certificateKeyFile: {{ (ansible_facts['os_family'] == 'Windows') | ternary(mongodb_pem_path_windows, mongodb_pem_path_linux) }}
+    disabledProtocols: TLS1_0,TLS1_1
+    allowConnectionsWithoutCertificates: true
+
+security:
+  authorization: enabled
+
+setParameter:
+  tlsUseSystemCA: true

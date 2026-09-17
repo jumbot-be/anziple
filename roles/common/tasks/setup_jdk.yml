@@ -1,0 +1,79 @@
+---
+- name: Set OS specific JDK artifact keys
+  ansible.builtin.set_fact:
+    jdk_front_key: "{{ (ansible_facts['os_family'] == 'Windows') | ternary('jdk_front_windows', 'jdk_front_linux') }}"
+    jdk_back_key: "{{ (ansible_facts['os_family'] == 'Windows') | ternary('jdk_back_windows', 'jdk_back_linux') }}"
+    jdk_legacy_key: "{{ (ansible_facts['os_family'] == 'Windows') | ternary('jdk_windows', 'jdk_linux') }}"
+  tags: [always]
+
+- name: Initialize JDK installation list
+  ansible.builtin.set_fact:
+    required_jdks: []
+  tags: [always]
+
+- name: Add Frontend JDK if applicable
+  ansible.builtin.set_fact:
+    required_jdks: "{{ required_jdks + [{'type': 'front', 'artifact': artifacts[jdk_front_key], 'dest_subdir': 'jdk/front'}] }}"
+  when:
+    - artifacts[jdk_front_key] is defined
+    - "'frontend_servers' in group_names or ('frontend_servers' not in group_names and 'backend_servers' not in group_names)"
+  tags: [always]
+
+- name: Add Backend JDK if applicable
+  ansible.builtin.set_fact:
+    required_jdks: "{{ required_jdks + [{'type': 'back', 'artifact': artifacts[jdk_back_key], 'dest_subdir': 'jdk/back'}] }}"
+  when:
+    - artifacts[jdk_back_key] is defined
+    - "'backend_servers' in group_names or ('frontend_servers' not in group_names and 'backend_servers' not in group_names)"
+  tags: [always]
+
+- name: Add Legacy JDK if applicable
+  ansible.builtin.set_fact:
+    required_jdks: "{{ required_jdks + [{'type': 'legacy', 'artifact': artifacts[jdk_legacy_key], 'dest_subdir': 'jdk'}] }}"
+  when:
+    - artifacts[jdk_legacy_key] is defined
+    - artifacts[jdk_front_key] is not defined
+    - artifacts[jdk_back_key] is not defined
+  tags: [always]
+
+- name: Set base paths for JDK
+  ansible.builtin.set_fact:
+    jdk_base_path: "{{ (ansible_facts['os_family'] == 'Windows') | ternary(adr_base_path_windows, adr_base_path_linux) }}"
+    jdk_sep: '{{ (ansible_facts["os_family"] == "Windows") | ternary("\\", "/") }}'
+  tags: [always]
+
+- name: Set component JAVA_HOME facts
+  ansible.builtin.set_fact:
+    frontend_java_home: "{{ jdk_base_path }}{{ jdk_sep }}jdk{{ jdk_sep }}front"
+    backend_java_home: "{{ jdk_base_path }}{{ jdk_sep }}jdk{{ jdk_sep }}back"
+    legacy_java_home: "{{ jdk_base_path }}{{ jdk_sep }}jdk"
+  tags: [always]
+
+- name: Set effective JAVA_HOME facts for components
+  ansible.builtin.set_fact:
+    keycloak_java_home: >-
+      {%- if required_jdks | selectattr('type', 'equalto', 'front') | list | length > 0 -%}
+        {{ frontend_java_home }}
+      {%- elif required_jdks | selectattr('type', 'equalto', 'legacy') | list | length > 0 -%}
+        {{ legacy_java_home }}
+      {%- else -%}
+        {{ backend_java_home }}
+      {%- endif -%}
+    payara_java_home: >-
+      {%- if required_jdks | selectattr('type', 'equalto', 'back') | list | length > 0 -%}
+        {{ backend_java_home }}
+      {%- elif required_jdks | selectattr('type', 'equalto', 'legacy') | list | length > 0 -%}
+        {{ legacy_java_home }}
+      {%- else -%}
+        {{ frontend_java_home }}
+      {%- endif -%}
+    # Global JAVA_HOME points to Frontend (if available) or the only available one.
+    common_java_home: >-
+      {%- if required_jdks | selectattr('type', 'equalto', 'front') | list | length > 0 -%}
+        {{ frontend_java_home }}
+      {%- elif required_jdks | selectattr('type', 'equalto', 'legacy') | list | length > 0 -%}
+        {{ legacy_java_home }}
+      {%- else -%}
+        {{ backend_java_home }}
+      {%- endif -%}
+  tags: [always]

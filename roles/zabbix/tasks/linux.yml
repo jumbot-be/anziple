@@ -1,0 +1,103 @@
+---
+- name: Get Ubuntu version for Zabbix repository
+  ansible.builtin.set_fact:
+    ubuntu_version: "{{ ansible_facts['distribution_version'] }}"
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install Zabbix repository package (Ubuntu 24.04)
+  ansible.builtin.apt:
+    deb: "https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_7.0-1+ubuntu24.04_all.deb"
+    state: present
+  when: ansible_facts['os_family'] == 'Debian' and ubuntu_version == "24.04"
+
+- name: Install Zabbix repository package (Ubuntu 26.04)
+  ansible.builtin.apt:
+    deb: "https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_7.0-1+ubuntu26.04_all.deb"
+    state: present
+  when: ansible_facts['os_family'] == 'Debian' and ubuntu_version == "26.04"
+
+- name: Update apt package index for Zabbix
+  ansible.builtin.apt:
+    update_cache: yes
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install Zabbix Agent (Debian)
+  ansible.builtin.apt:
+    name: zabbix-agent
+    state: present
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install Zabbix Agent (RedHat)
+  ansible.builtin.dnf:
+    name: zabbix-agent
+    state: present
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Ensure Zabbix directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/zabbix
+    - /opt/zabbix/bin
+
+- name: Deploy Zabbix probe scripts
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "/opt/zabbix/bin/{{ item.name }}"
+    mode: '0755'
+  loop:
+    - name: lsofprobe
+      content: |
+        #!/bin/bash
+        lsof -p $(ps ax | grep java | grep payara | awk '{print $1}') | wc -l > /opt/zabbix/lsofresult
+    - name: ulimitprobe
+      content: |
+        #!/bin/bash
+        ulimit -a | grep 'open files' | awk '{print $4}' > /opt/zabbix/ulimitresult
+    - name: netstatprobe
+      content: |
+        #!/bin/bash
+        netstat -anp | grep $(ps ax | grep java | grep payara | awk '{print $1}')/java | wc -l > /opt/zabbix/netstatresult
+    - name: tcpstatus
+      content: |
+        #!/bin/bash
+        ss -s | grep '^TCP:' | awk '{print int($2),int($4),int($6),int($8),int($10);print $0}' > /opt/zabbix/tcpstatusresult
+
+- name: Configure crontab for Zabbix probes
+  ansible.builtin.cron:
+    name: "Zabbix probe {{ item }}"
+    minute: "*"
+    job: "/opt/zabbix/bin/{{ item }} > /dev/null"
+  loop:
+    - lsofprobe
+    - ulimitprobe
+    - netstatprobe
+    - tcpstatus
+
+- name: Configure zabbix_agentd.conf
+  ansible.builtin.blockinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    marker: "# {mark} ANSIBLE MANAGED ZABBIX PARAMETERS"
+    block: |
+      UserParameter=custom.vfs.dev.read.ops[*],cat /proc/diskstats | grep $1 | head -1 | awk '{print $$4}'
+      UserParameter=custom.vfs.dev.read.ms[*],cat /proc/diskstats | grep $1 | head -1 | awk '{print $$7}'
+      UserParameter=custom.vfs.dev.write.ops[*],cat /proc/diskstats | grep $1 | head -1 | awk '{print $$8}'
+      UserParameter=custom.vfs.dev.write.ms[*],cat /proc/diskstats | grep $1 | head -1 | awk '{print $$11}'
+      UserParameter=custom.vfs.dev.io.active[*],cat /proc/diskstats | grep $1 | head -1 | awk '{print $$12}'
+      UserParameter=custom.payara.lsof,cat /opt/zabbix/lsofresult
+      UserParameter=custom.ulimit,cat /opt/zabbix/ulimitresult
+      UserParameter=custom.payara.netstat,cat /opt/zabbix/netstatresult
+      UserParameter=custom.tcp.total,awk '{print $1;exit}' /opt/zabbix/tcpstatusresult
+      UserParameter=custom.tcp.established,awk '{print $2;exit}' /opt/zabbix/tcpstatusresult
+      UserParameter=custom.tcp.closed,awk '{print $3;exit}' /opt/zabbix/tcpstatusresult
+      UserParameter=custom.tcp.orphaned,awk '{print $4;exit}' /opt/zabbix/tcpstatusresult
+      UserParameter=custom.tcp.timewait,awk '{print $5;exit}' /opt/zabbix/tcpstatusresult
+  notify: Restart Zabbix Agent
+
+- name: Verify Zabbix custom parameter
+  ansible.builtin.command: zabbix_agentd -t custom.ulimit
+  register: zabbix_test_result
+  changed_when: false
+  failed_when: zabbix_test_result.rc != 0

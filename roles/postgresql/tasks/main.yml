@@ -1,0 +1,21 @@
+---
+- name: Setup PostgreSQL facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+  when:
+    - postgresql_enabled | default(false)
+    - payara_type | default('') != 'frontend'
+
+- name: Include Linux tasks
+  ansible.builtin.include_tasks: linux.yml
+  when:
+    - postgresql_enabled | default(false)
+    - ansible_facts['os_family'] != 'Windows'
+    - payara_type | default('') != 'frontend'
+
+- name: Include Windows tasks
+  ansible.builtin.include_tasks: windows.yml
+  when:
+    - postgresql_enabled | default(false)
+    - ansible_facts['os_family'] == 'Windows'
+    - payara_type | default('') != 'frontend'

@@ -1,0 +1,13 @@
+---
+- name: Stop PostgreSQL
+  ansible.builtin.include_tasks: stop.yml
+
+- name: Backup PostgreSQL
+  ansible.builtin.include_tasks: backup.yml
+  tags: [backup]
+
+- name: Update PostgreSQL
+  ansible.builtin.include_tasks: main.yml
+
+- name: Start PostgreSQL
+  ansible.builtin.include_tasks: start.yml

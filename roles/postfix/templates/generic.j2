@@ -1,0 +1,2 @@
+root {{ postfix_from_address }}
+@{{ ansible_facts['fqdn'] | default(ansible_facts['hostname']) }} {{ postfix_from_address }}

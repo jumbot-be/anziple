@@ -1,0 +1,14 @@
+---
+- name: Update Common Components (JDK)
+  ansible.builtin.include_role:
+    name: common
+  tags: [common, jdk]
+
+- name: Stop Payara
+  ansible.builtin.include_tasks: stop.yml
+
+- name: Update Payara
+  ansible.builtin.include_tasks: main.yml
+
+- name: Start Payara
+  ansible.builtin.include_tasks: start.yml

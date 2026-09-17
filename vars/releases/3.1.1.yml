@@ -1,0 +1,43 @@
+apcm_version: 3.1.1
+payara_bundle_version: 5.70.0-2
+keycloak_bundle_version: '24.0'
+nginx_bundle_version: 3.1.1
+mongodb_version: 8.0.16
+artifacts:
+  payara:
+    name: apcm-payara-bundle-5.70.0-2-payara-bundle.zip
+    url: /opt/SOURCES/ADR-3.1.1/payara/apcm-payara-bundle-5.70.0-2-payara-bundle.zip
+    checksum: sha256:0317a014d34f823a0e5db8b6fbe17d974014edeef77d3811d8abbad8f8067868
+  rest_api:
+    name: ampacimon-rest-api-ms-3.1.1.war
+    url: /opt/SOURCES/ADR-3.1.1/frontend/ampacimon-rest-api-ms-3.1.1.war
+    checksum: sha256:0f2b9990afed477b35b857ab03a2f5559c29f936f4b2bb5d7083bbbaf8477aa9
+  keycloak:
+    name: apcm-keycloak-bundle-24.0-Keycloak-RedHat.zip
+    url: /opt/SOURCES/ADR-3.1.1/keycloak/apcm-keycloak-bundle-24.0-Keycloak-RedHat.zip
+    checksum: sha256:4bceee3e93f495890a2c5b3a382d2d0c66d0b77329b6944d45a66afde11e4b82
+  explorer_ear:
+    name: ampacimon-explorer-ear-3.1.1.ear
+    url: /opt/SOURCES/ADR-3.1.1/frontend/ampacimon-explorer-ear-3.1.1.ear
+    checksum: sha256:585b8fea20e4d1510abd7006c55f74673dd1ec61ca28ce2a96aa17c79c5f2f7b
+  nginx:
+    name: apcm-nginx-bundle-3.1.1-nginx-bundle.zip
+    url: /opt/SOURCES/ADR-3.1.1/nginx/apcm-nginx-bundle-3.1.1-nginx-bundle.zip
+    checksum: sha256:703d40561f419bf224ba56e0572ea150291f73fc852720ad1b00bf3d8bd0e895
+  apcm_server:
+    name: apcm-server-war-3.1.1.war
+    url: /opt/SOURCES/ADR-3.1.1/backend/apcm-server-war-3.1.1.war
+    checksum: sha256:9ba625962eddb4fd0f832455640227842d622698571281b96b573585afc37d34
+  adg_server:
+    name: apcm-adg-server-war-3.1.1.war
+    url: /opt/SOURCES/ADR-3.1.1/backend/apcm-adg-server-war-3.1.1.war
+    checksum: sha256:b068acc2703f321737fd7dbc49bdd5460e0664cb7edf3a3953876484a8a53cdc
+  jdk_windows:
+    name: zulu17.54.21-ca-jdk17.0.13-win_x64.zip
+    url: /opt/SOURCES/ADR-3.1.1/jdk/zulu17.54.21-ca-jdk17.0.13-win_x64.zip
+    checksum: sha256:cd49f12e8d5420758fa0196f7e602d5edf29f2e03dc7753b80e6df0148e8c522
+  jdk_linux:
+    name: zulu17.54.21-ca-jdk17.0.13-linux_x64.tar.gz
+    url: /opt/SOURCES/ADR-3.1.1/jdk/zulu17.54.21-ca-jdk17.0.13-linux_x64.tar.gz
+    checksum: sha256:dfae910c1583e60bf527d634ce0ddfaa16f094da9cd662f8e6634a5a5a80c4f2
+

@@ -1,0 +1,54 @@
+# Ansible Dynamic Inventory for AWS EC2 (Development Environment)
+# For more info: https://docs.ansible.com/ansible/latest/collections/amazon/aws/aws_ec2_inventory.html
+
+plugin: amazon.aws.aws_ec2
+
+# Specify AWS regions to query
+regions:
+  - eu-central-1
+  - us-east-1
+
+# Filter for instances
+filters:
+  # Only retrieve instances that are running
+  instance-state-name:
+    - running
+
+# Hostnames determines what name is used as the inventory host identifier.
+# It attempts to use the 'Name' tag first, falling back to private-ip-address.
+hostnames:
+  - tag:Name
+  - private-ip-address
+
+# Compose variables for hosts
+compose:
+  # Force ansible_host to be the private IP address for ssh/winrm connections
+  ansible_host: private_ip_address
+
+  # Dynamically set connection parameters based on platform (Windows) or tag 'OS' / 'os'
+  ansible_connection: "((platform | default('')) == 'windows' or 'windows' in (tags.OS | default('') | lower) or 'windows' in (tags.os | default('') | lower)) | ternary('winrm', 'ssh')"
+  ansible_become: "((platform | default('')) == 'windows' or 'windows' in (tags.OS | default('') | lower) or 'windows' in (tags.os | default('') | lower)) | ternary(false, true)"
+  ansible_winrm_server_cert_validation: "((platform | default('')) == 'windows' or 'windows' in (tags.OS | default('') | lower) or 'windows' in (tags.os | default('') | lower)) | ternary('ignore', omit)"
+
+# Dynamic Grouping Examples
+# ---------------------------
+# Below are examples of how to group EC2 instances dynamically into Ansible groups.
+# Uncomment the sections below and adjust according to your AWS tags to enable.
+
+# 1. Keyed Groups Example:
+# Creates groups based on tag values (e.g., tag_Role_frontend, tag_Environment_dev, platform_windows)
+# keyed_groups:
+#   - prefix: tag_Role
+#     key: tags.Role
+#   - prefix: tag_Environment
+#     key: tags.Environment
+#   - prefix: platform
+#     key: platform
+
+# 2. Direct Group Mapping Example:
+# Directly maps instances to the APCM project's standard group names based on tag values.
+# To use this, tag your EC2 instances with Role=frontend_servers, Role=backend_servers, etc.
+# groups:
+#   frontend_servers: "tags.Role | default('') == 'frontend_servers' or tags.Role | default('') == 'frontend'"
+#   backend_servers: "tags.Role | default('') == 'backend_servers' or tags.Role | default('') == 'backend'"
+#   database_servers: "tags.Role | default('') == 'database_servers' or tags.Role | default('') == 'database'"

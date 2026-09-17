@@ -1,0 +1,23 @@
+---
+- name: Restart Nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+
+- name: Restart PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    state: restarted
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+
+- name: Restart services (Windows)
+  ansible.windows.win_service:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - nginx
+    - postgresql
+  when: ansible_facts['os_family'] == 'Windows'

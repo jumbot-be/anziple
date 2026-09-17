@@ -1,0 +1,24 @@
+---
+# Update certificates specific configuration
+update_certs_enabled: false
+
+# Certificate paths
+update_certs_cert_dest: "/etc/ssl/certs"
+update_certs_cert_src: ""
+
+update_certs_key_dest: "/etc/ssl/private"
+update_certs_key_src: ""
+
+# S3 configuration (alternative to local files)
+update_certs_cert_s3_bucket: ""
+update_certs_cert_s3_object: ""
+update_certs_key_s3_bucket: ""
+update_certs_key_s3_object: ""
+
+# Temporary download directory
+update_certs_temp_dir: "/tmp/certs"
+
+# File permissions
+update_certs_owner: "root"
+update_certs_group: "root"
+update_certs_mode: "0644"

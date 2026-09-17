@@ -1,0 +1,90 @@
+---
+- name: Install MongoDB (Windows)
+  block:
+    - name: Ensure MongoDB install directory exists
+      ansible.windows.win_file:
+        path: 'C:\adr\MongoDB'
+        state: directory
+
+    - name: Copy MongoDB MSI to target
+      ansible.windows.win_copy:
+        src: "{{ artifacts.mongodb_windows.url }}"
+        dest: "{{ ansible_facts['env']['TEMP'] }}\\{{ artifacts.mongodb_windows.name }}"
+
+    - name: Install MongoDB via MSI
+      ansible.windows.win_package:
+        path: "{{ ansible_facts['env']['TEMP'] }}\\{{ artifacts.mongodb_windows.name }}"
+        state: present
+        arguments:
+          - /quiet
+          - /qn
+          - /norestart
+          - ALLUSERS=1
+          - INSTALLLOCATION=C:\adr\MongoDB
+          - ADDLOCAL=Server,Client,MonitoringTools,ImportExportTools,MiscTools
+          - SHOULD_INSTALL_COMPASS=0
+
+- name: Generate SSL certificate (Windows)
+  ansible.windows.win_shell: |
+    $env:MSYS_NO_PATHCONV=1
+    openssl req -newkey rsa:2048 -new -x509 -days 3650 -nodes `
+    -subj "{{ mongodb_cert_subj }}" `
+    -out mongodb-cert.crt -keyout mongodb-cert.key
+    Get-Content mongodb-cert.key, mongodb-cert.crt | Set-Content "{{ mongodb_pem_path }}"
+    Remove-Item mongodb-cert.key, mongodb-cert.crt
+  args:
+    creates: "{{ mongodb_pem_path }}"
+
+- name: Ensure MongoDB is started for user creation (Windows)
+  ansible.windows.win_service:
+    name: MongoDB
+    state: started
+    start_mode: auto
+
+- name: Create Admin User (handling no-auth bootstrap Windows)
+  ansible.windows.win_shell: |
+    & "C:\adr\MongoDB\bin\mongosh.exe" --port 27017 --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
+  register: mongodb_user_creation_win
+  failed_when: false
+  changed_when: "'Successfully added user' in mongodb_user_creation_win.stdout"
+
+- name: Configure MongoDB with Authorization and TLS
+  ansible.builtin.template:
+    src: mongod.conf.j2
+    dest: "{{ mongodb_conf_path }}"
+  notify: Restart MongoDB
+
+- name: Flush handlers to apply security configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify connection without credentials must fail (Windows)
+  ansible.windows.win_shell: |
+    & "C:\adr\MongoDB\bin\mongosh.exe" --port 27017 --eval 'db.runCommand({connectionStatus : 1})'
+  register: mongodb_auth_test_win
+  failed_when: mongodb_auth_test_win.rc == 0
+  changed_when: false
+
+- name: Configure Logrotation (Windows)
+  block:
+    - name: Ensure scripts directory exists
+      ansible.windows.win_file:
+        path: 'C:\adr\scripts'
+        state: directory
+
+    - name: Deploy MongoDB log rotation script
+      ansible.builtin.template:
+        src: mongodb_logrotate.ps1.j2
+        dest: 'C:\adr\scripts\mongodb_logrotate.ps1'
+
+    - name: Schedule MongoDB log rotation task
+      community.windows.win_scheduled_task:
+        name: MongoDBLogRotation
+        description: "Rotates MongoDB logs daily"
+        actions:
+          - path: powershell.exe
+            arguments: "-ExecutionPolicy Bypass -File C:\\adr\\scripts\\mongodb_logrotate.ps1"
+        triggers:
+          - type: daily
+            start_boundary: '2023-01-01T00:00:00'
+        username: SYSTEM
+        state: present

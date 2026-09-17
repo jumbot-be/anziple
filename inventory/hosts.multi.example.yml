@@ -1,0 +1,32 @@
+# Example inventory for a multi-server deployment (2-server setup)
+#
+# frontend_servers: runs Nginx, Keycloak, and Payara (Frontend WARs)
+# backend_servers: runs Nginx, Payara (Backend WARs), MongoDB, and PostgreSQL
+# database_servers: (optional) if you want to isolate DBs further
+
+all:
+  vars:
+    # Set this to your internal network range for security
+    allowed_network_range: "10.0.0.0/24"
+    # MongoDB should bind to localhost and the internal IP
+    mongodb_bind_ips: "127.0.0.1,10.0.0.2"
+
+  children:
+    frontend_servers:
+      hosts:
+        server-app-01:
+          ansible_host: 10.0.0.1
+          # payara_type controls which WARs are deployed (frontend/backend/all)
+          payara_type: frontend
+
+    backend_servers:
+      hosts:
+        server-db-01:
+          ansible_host: 10.0.0.2
+          payara_type: backend
+
+    # If database_servers is not defined, roles fallback to backend_servers, then 'all'
+    # database_servers:
+    #   hosts:
+    #     dedicated-db:
+    #       ansible_host: 10.0.0.3

@@ -1,0 +1,68 @@
+---
+- name: Ensure certificate destination directory exists (Linux)
+  ansible.builtin.file:
+    path: "{{ update_certs_cert_dest }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ update_certs_owner }}"
+    group: "{{ update_certs_group }}"
+
+- name: Ensure key destination directory exists (Linux)
+  ansible.builtin.file:
+    path: "{{ update_certs_key_dest }}"
+    state: directory
+    mode: '0750'
+    owner: "{{ update_certs_owner }}"
+    group: "{{ update_certs_group }}"
+
+- name: Copy SSL certificate from S3 (Linux)
+  ansible.builtin.copy:
+    src: "{{ update_certs_temp_dir }}/{{ cert_filename }}"
+    dest: "{{ update_certs_cert_dest }}/{{ cert_filename }}"
+    mode: "{{ update_certs_mode }}"
+    owner: "{{ update_certs_owner }}"
+    group: "{{ update_certs_group }}"
+    remote_src: false
+  when:
+    - use_s3_cert
+    - cert_filename != ''
+  notify: restart services
+
+- name: Copy SSL certificate from local (Linux)
+  ansible.builtin.copy:
+    src: "{{ update_certs_cert_src }}"
+    dest: "{{ update_certs_cert_dest }}/{{ update_certs_cert_src | basename }}"
+    mode: "{{ update_certs_mode }}"
+    owner: "{{ update_certs_owner }}"
+    group: "{{ update_certs_group }}"
+    remote_src: false
+  when:
+    - not use_s3_cert
+    - update_certs_cert_src != ''
+  notify: restart services
+
+- name: Copy SSL key from S3 (Linux)
+  ansible.builtin.copy:
+    src: "{{ update_certs_temp_dir }}/{{ key_filename }}"
+    dest: "{{ update_certs_key_dest }}/{{ key_filename }}"
+    mode: "{{ update_certs_mode }}"
+    owner: "{{ update_certs_owner }}"
+    group: "{{ update_certs_group }}"
+    remote_src: false
+  when:
+    - use_s3_key
+    - key_filename != ''
+  notify: restart services
+
+- name: Copy SSL key from local (Linux)
+  ansible.builtin.copy:
+    src: "{{ update_certs_key_src }}"
+    dest: "{{ update_certs_key_dest }}/{{ update_certs_key_src | basename }}"
+    mode: "{{ update_certs_mode }}"
+    owner: "{{ update_certs_owner }}"
+    group: "{{ update_certs_group }}"
+    remote_src: false
+  when:
+    - not use_s3_key
+    - update_certs_key_src != ''
+  notify: restart services

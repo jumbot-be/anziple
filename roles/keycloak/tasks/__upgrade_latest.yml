@@ -1,0 +1,116 @@
+- name: Set OS-specific facts
+  ansible.builtin.set_fact:
+    keycloak_upgrade_symlink_path: "{{ (ansible_facts['os_family'] == 'Windows') | ternary(keycloak_symlink_path_windows, keycloak_symlink_path_linux) }}"
+
+- name: Get current Keycloak version from version.txt
+  ansible.builtin.slurp:
+    src: "{{ keycloak_upgrade_symlink_path }}/version.txt"
+  register: keycloak_version_file
+  ignore_errors: true
+
+- name: Set current version from version.txt
+  ansible.builtin.set_fact:
+    keycloak_current_version: "{{ keycloak_version_file.content | b64decode | trim }}"
+  when: keycloak_version_file is success
+
+- name: Get current Keycloak version from kc.sh
+  ansible.builtin.command: "{{ keycloak_upgrade_symlink_path }}/bin/kc.sh --version"
+  register: keycloak_kc_version
+  when: keycloak_version_file is failed
+  changed_when: false
+
+- name: Set current version from kc.sh
+  ansible.builtin.set_fact:
+    keycloak_current_version: "{{ keycloak_kc_version.stdout | regex_replace('Keycloak (\\d+\\.\\d+\\.\\d+)', '\\1') }}"
+  when: keycloak_version_file is failed
+
+- name: Stop Keycloak
+  ansible.builtin.systemd:
+    name: "{{ keycloak_service_name_linux }}"
+    state: stopped
+
+- name: Create backup directory
+  ansible.builtin.file:
+    path: "{{ adr_base_path_linux }}/keycloak-{{ keycloak_current_version }}"
+    state: directory
+    mode: '0755'
+
+- name: Save current Keycloak installation
+  community.general.archive:
+    path: "{{ keycloak_upgrade_symlink_path }}/"
+    dest: "{{ adr_base_path_linux }}/keycloak-{{ keycloak_current_version }}/keycloak-{{ keycloak_current_version }}-full.tar.gz"
+    format: gz
+    mode: '0644'
+
+- name: Dump db
+  ansible.builtin.command: "{{ keycloak_upgrade_symlink_path }}/bin/kc.sh export --dir {{ adr_base_path_linux }}/keycloak-{{ keycloak_current_version }}/db-dump --users realm_file"
+  changed_when: true
+
+- name: Dump config
+  ansible.builtin.command: "{{ keycloak_upgrade_symlink_path }}/bin/kc.sh config export --dir {{ adr_base_path_linux }}/keycloak-{{ keycloak_current_version }}/config-dump"
+  changed_when: true
+
+- name: Get latest release version from GitHub API
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/keycloak/keycloak/releases/latest
+    return_content: true
+  register: keycloak_latest_release
+
+- name: Set latest version fact
+  ansible.builtin.set_fact:
+    keycloak_latest_version: "{{ keycloak_latest_release.json.tag_name | regex_replace('^v', '') }}"
+
+- name: Set artifact dest
+  ansible.builtin.set_fact:
+    keycloak_new_bundle_dest: "/tmp/keycloak-{{ keycloak_latest_version }}.tar.gz"
+
+- name: Download latest version
+  ansible.builtin.include_role:
+    name: integrity
+  vars:
+    integrity_artifact_url: "https://github.com/keycloak/keycloak/releases/download/{{ keycloak_latest_release.json.tag_name }}/keycloak-{{ keycloak_latest_version }}.tar.gz"
+    integrity_artifact_dest: "{{ keycloak_new_bundle_dest }}"
+
+- name: Create new version directory
+  ansible.builtin.file:
+    path: "{{ adr_base_path_linux }}/keycloak-{{ keycloak_latest_version }}"
+    state: directory
+    mode: '0755'
+
+- name: Extract new Keycloak version
+  ansible.builtin.unarchive:
+    src: "{{ keycloak_new_bundle_dest }}"
+    dest: "{{ adr_base_path_linux }}/keycloak-{{ keycloak_latest_version }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+
+- name: Update symlink
+  ansible.builtin.file:
+    src: "{{ adr_base_path_linux }}/keycloak-{{ keycloak_latest_version }}"
+    dest: "{{ keycloak_upgrade_symlink_path }}"
+    state: link
+    force: true
+
+- name: Cleanup downloaded archive
+  ansible.builtin.file:
+    path: "{{ keycloak_new_bundle_dest }}"
+    state: absent
+
+- name: Restart Keycloak
+  ansible.builtin.systemd:
+    name: "{{ keycloak_service_name_linux }}"
+    state: restarted
+
+- name: List existing backups
+  ansible.builtin.find:
+    paths: "{{ adr_base_path_linux }}"
+    patterns: "keycloak-*"
+    file_type: directory
+  register: keycloak_backups
+
+- name: Delete old backups, keeping only the 3 most recent ones
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ (keycloak_backups.files | map(attribute='path') | sort | reverse | list)[3:] }}"
+  when: keycloak_backups.files | length > 3

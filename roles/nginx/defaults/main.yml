@@ -1,0 +1,3 @@
+# Nginx specific configuration
+nginx_extract_dir: "apcm-nginx-bundle"
+nginx_port: 80

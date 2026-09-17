@@ -1,0 +1,11 @@
+---
+- name: Set facts for PostgreSQL
+  ansible.builtin.set_fact:
+    postgresql_service_name: "{{ (ansible_facts['os_family'] == 'Windows') | ternary('postgresql-x64-' + postgresql_version, postgresql_service_name_linux) }}"
+    postgresql_collation: "{{ (ansible_facts['os_family'] == 'Windows') | ternary(postgresql_windows_collation, postgresql_linux_collation) }}"
+    postgresql_linux_collation_lower: "{{ postgresql_linux_collation | lower | replace('-', '') }}"
+    postgresql_keycloak_db_name: "adr_keycloak_{{ customer_name }}"
+    postgresql_keycloak_user: "adr_keycloak_user"
+    postgresql_adr_db_name: "adr_{{ customer_name }}"
+    postgresql_adr_customer_user: "adr_{{ customer_name }}"
+  tags: [always]

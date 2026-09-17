@@ -1,0 +1,16 @@
+---
+- name: Set backup directory fact
+  ansible.builtin.set_fact:
+    mongodb_backup_dir: "/opt/adr-backup-{{ apcm_version }}"
+
+- name: Ensure backup directory exists (Linux)
+  ansible.builtin.file:
+    path: "{{ mongodb_backup_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Perform MongoDB Backup (Linux)
+  ansible.builtin.shell: |
+    mongodump --port 27017 --username {{ mongodb_admin_user }} --password {{ mongodb_admin_password }} --authenticationDatabase admin --out {{ mongodb_backup_dir }}/mongodb-backup
+  no_log: true
+  changed_when: true

@@ -1,0 +1,30 @@
+---
+- name: Setup PostgreSQL facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Stop PostgreSQL (Linux)
+  block:
+    - name: Stop PostgreSQL service (Linux)
+      ansible.builtin.service:
+        name: "{{ postgresql_service_name }}"
+        state: stopped
+
+    - name: Ensure PostgreSQL port is free (Linux)
+      ansible.builtin.shell: |
+        PID=$(lsof -t -i :5432)
+        if [ -n "$PID" ]; then
+          echo "Port 5432 is still in use by PID $PID. Killing it..."
+          kill -9 $PID
+        fi
+      args:
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Stop PostgreSQL (Windows)
+  ansible.windows.win_service:
+    name: "{{ postgresql_service_name }}"
+    state: stopped
+  when: ansible_facts['os_family'] == 'Windows'

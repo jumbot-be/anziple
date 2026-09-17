@@ -1,0 +1,21 @@
+---
+- name: Set backup directory fact
+  ansible.builtin.set_fact:
+    postgresql_backup_dir: "/opt/adr-backup-{{ apcm_version }}"
+
+- name: Ensure backup directory exists (Linux)
+  ansible.builtin.file:
+    path: "{{ postgresql_backup_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Perform PostgreSQL Backup (Linux)
+  community.postgresql.postgresql_db:
+    name: "{{ item }}"
+    state: dump
+    target: "{{ postgresql_backup_dir }}/{{ item }}.sql"
+  loop:
+    - "{{ postgresql_adr_db_name }}"
+    - "{{ postgresql_keycloak_db_name }}"
+  become: true
+  become_user: postgres

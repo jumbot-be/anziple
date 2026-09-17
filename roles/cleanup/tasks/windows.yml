@@ -1,0 +1,44 @@
+---
+- name: Remove known artifact files from TEMP
+  ansible.windows.win_file:
+    path: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.value.name }}"
+    state: absent
+  loop: "{{ artifacts | dict2items }}"
+  when: item.value.name is defined
+
+- name: Remove specific temporary files from TEMP
+  ansible.windows.win_file:
+    path: "{{ ansible_facts['env']['TEMP'] }}\\{{ item }}"
+    state: absent
+  loop:
+    - ConfigureRemotingForAnsible.ps1
+
+- name: Find all .zip files in installation directory (Windows)
+  ansible.windows.win_find:
+    paths: "{{ adr_base_path_windows }}"
+    patterns: "*.zip"
+  register: adr_zip_files_win
+
+- name: Remove all .zip files from installation directory (Windows)
+  ansible.windows.win_file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ adr_zip_files_win.files }}"
+
+- name: Cleanup old versioned directories for Keycloak (Windows)
+  ansible.builtin.include_tasks: cleanup_component_windows.yml
+  vars:
+    component_name: "Keycloak"
+    component_pattern: "apcm-keycloak-bundle"
+
+- name: Cleanup old versioned directories for Nginx (Windows)
+  ansible.builtin.include_tasks: cleanup_component_windows.yml
+  vars:
+    component_name: "Nginx"
+    component_pattern: "apcm-nginx-bundle"
+
+- name: Cleanup old versioned directories for Payara (Windows)
+  ansible.builtin.include_tasks: cleanup_component_windows.yml
+  vars:
+    component_name: "Payara"
+    component_pattern: "apcm-payara-bundle"

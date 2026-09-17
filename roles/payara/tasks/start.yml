@@ -1,0 +1,17 @@
+---
+- name: Setup Payara facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Start Payara (Linux)
+  ansible.builtin.shell: |
+    {{ payara_symlink_path }}/bin/asadmin start-domain
+  args:
+    executable: /bin/bash
+  when: ansible_facts['os_family'] != 'Windows'
+  changed_when: true
+
+- name: Start Payara (Windows)
+  ansible.windows.win_shell: |
+    & "{{ payara_symlink_path }}\bin\asadmin.bat" start-domain
+  when: ansible_facts['os_family'] == 'Windows'

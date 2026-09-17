@@ -1,0 +1,33 @@
+---
+- name: Determine if source is local
+  ansible.builtin.set_fact:
+    integrity_is_local: "{{ integrity_artifact_url and not (integrity_artifact_url.startswith('http://') or integrity_artifact_url.startswith('https://')) }}"
+
+- name: Handle remote artifact (Windows)
+  ansible.windows.win_get_url:
+    url: "{{ integrity_artifact_url }}"
+    dest: "{{ integrity_artifact_dest }}"
+    checksum: "{{ integrity_artifact_checksum.split(':')[1] if ':' in integrity_artifact_checksum else integrity_artifact_checksum }}"
+    checksum_algorithm: sha256
+    validate_certs: "{{ integrity_validate_certs | default(ansible_validate_certs) | default(true) }}"
+  when: not integrity_is_local and integrity_artifact_url
+
+- name: Handle local artifact (Windows)
+  ansible.windows.win_copy:
+    src: "{{ integrity_artifact_url }}"
+    dest: "{{ integrity_artifact_dest }}"
+  when: integrity_is_local and integrity_artifact_url
+
+- name: Verify integrity after copy (Windows)
+  ansible.windows.win_stat:
+    path: "{{ integrity_artifact_dest }}"
+    checksum_algorithm: sha256
+  register: artifact_stat_windows
+  when: integrity_is_local
+
+- name: Fail if integrity check fails (Windows)
+  ansible.builtin.fail:
+    msg: "Integrity check failed for local artifact {{ integrity_artifact_url }}. Expected {{ integrity_artifact_checksum.split(':')[1] if ':' in integrity_artifact_checksum else integrity_artifact_checksum }}, got {{ artifact_stat_windows.stat.checksum }}"
+  when:
+    - integrity_is_local
+    - artifact_stat_windows.stat.checksum != (integrity_artifact_checksum.split(':')[1] if ':' in integrity_artifact_checksum else integrity_artifact_checksum)

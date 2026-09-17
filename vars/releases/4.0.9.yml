@@ -1,0 +1,58 @@
+---
+# APCM Release 4.0.9
+
+# Versions
+apcm_version: "4.0.9"
+payara_bundle_version: "5.82.0-4.0.8"
+keycloak_bundle_version: "26.4-4.0.6"
+nginx_bundle_version: "4.0.9"
+mongodb_version: "8.0.16"
+
+# Artifacts and Hashes
+artifacts:
+  payara:
+    name: "apcm-payara-bundle-{{ payara_bundle_version }}-payara-bundle.zip"
+    url: "/opt/SOURCES/payara/apcm-payara-bundle-{{ payara_bundle_version }}-payara-bundle.zip"
+    checksum: "sha256:352e72d4e493d4f06f121ed7ee14888a8c3d3938d71fe1a6938bd3b6fcc8bbbd"
+  keycloak:
+    name: "apcm-keycloak-bundle-{{ keycloak_bundle_version }}-Keycloak-RedHat.zip"
+    url: "/opt/SOURCES/keycloak/apcm-keycloak-bundle-{{ keycloak_bundle_version }}-Keycloak-RedHat.zip"
+    checksum: "sha256:7dbda28184756ad5492d35583ab36de5e5901c15ffb112af6e9274ca0f07e830"
+  nginx:
+    name: "apcm-nginx-bundle-{{ nginx_bundle_version }}-nginx-bundle.zip"
+    url: "/opt/SOURCES/nginx/apcm-nginx-bundle-{{ nginx_bundle_version }}-nginx-bundle.zip"
+    checksum: "sha256:5cc9e2252dec3477fdcce9e38ee28915aa13ab4480e29358bb693bab11b77418"
+  jdk_linux:
+    name: "zulu17.62.17-ca-jdk17.0.17-linux_x64.tar.gz"
+    url: "/opt/SOURCES/jdk/zulu17.62.17-ca-jdk17.0.17-linux_x64.tar.gz"
+    checksum: "sha256:1dcbbed73e95dc35f5c60402a84936f6830ff43c2a0dc0037a5657dbc25472c1"
+  jdk_windows:
+    name: "zulu17.62.17-ca-jdk17.0.17-win_x64.zip"
+    url: "/opt/SOURCES/jdk/zulu17.62.17-ca-jdk17.0.17-win_x64.zip"
+    checksum: "sha256:bd8a942bb543f109a28d3eadf3ec2f29a3ee28ab53506e31d2858292f63c6949"
+  adg_server:
+    name: "apcm-adg-server-war-{{ apcm_version }}.war"
+    url: "https://example.com/downloads/backend/apcm-adg-server-war-{{ apcm_version }}.war"
+    checksum: "sha256:5f11fe2dc78f5bd665be052c68ee0d52f0680b8a5147f1fa1ed2ea0969a11b86"
+  apcm_server:
+    name: "apcm-server-war-{{ apcm_version }}.war"
+    url: "https://example.com/downloads/backend/apcm-server-war-{{ apcm_version }}.war"
+    checksum: "sha256:4c634c956eb8b6be473d9f08a19b5ac13b3d28fe00a8e1bd3e53946d7d4c7660"
+  explorer_ear:
+    name: "ampacimon-explorer-ear-{{ apcm_version }}.ear"
+    url: "https://example.com/downloads/frontend/ampacimon-explorer-ear-{{ apcm_version }}.ear"
+    checksum: "sha256:2dc00d26813c482733342c6bc91ecba482978931d4121e9dc9926d192805274f"
+  rest_api:
+    name: "ampacimon-rest-api-ms-{{ apcm_version }}.war"
+    url: "https://example.com/downloads/frontend/ampacimon-rest-api-ms-{{ apcm_version }}.war"
+    checksum: "sha256:aab7f455744e879b62b45632b5216151af81690402c15f9963285a88f5339af6"
+  line_cycles_js:
+    name: "update_all_line_cycles.js"
+    url: "https://example.com/downloads/update_all_line_cycles.js"
+    checksum: "sha256:b40e7445f3324aeb6c97c669145a093c1e88c453850b8f83ab285104f27f472b"
+  mongodb_windows:
+    name: "mongodb-windows-x86_64-{{ mongodb_version }}-signed.msi"
+    url: "/opt/SOURCES/DB/mongodb-windows-x86_64-{{ mongodb_version }}-signed.msi"
+  postgresql_windows:
+    name: "dummy.exe"
+    url: "/opt/SOURCES/DB/dummy.exe"

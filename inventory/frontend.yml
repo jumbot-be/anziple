@@ -1,0 +1,27 @@
+all:
+  vars:
+    # Set this to your internal network range for security
+    allowed_network_range: "172.20.0.0/16"
+    # MongoDB should bind to localhost and the internal IP
+    mongodb_bind_ips: "127.0.0.1,172.20.0.2"
+
+  children:
+    frontend_servers:
+      hosts:
+        localhost:
+          ansible_host: 127.0.0.1
+          # payara_type controls which WARs are deployed (frontend/backend/all)
+          payara_type: frontend
+          ansible_connection: local
+    database_servers:
+      hosts:
+        backendhost:
+          ansible_host: 10.10.10.10
+    backend_servers: 
+      hosts:
+        anotherhost:
+          ansible_host: 10.10.10.10
+    # local:
+    #   hosts:
+    #     localhost:
+    #       ansible_connection: local

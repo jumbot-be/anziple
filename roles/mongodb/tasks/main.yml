@@ -1,0 +1,17 @@
+---
+- name: Setup MongoDB facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+  when: payara_type | default('') != 'frontend'
+
+- name: Include Linux tasks
+  ansible.builtin.include_tasks: linux.yml
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+    - payara_type | default('') != 'frontend'
+
+- name: Include Windows tasks
+  ansible.builtin.include_tasks: windows.yml
+  when:
+    - ansible_facts['os_family'] == 'Windows'
+    - payara_type | default('') != 'frontend'

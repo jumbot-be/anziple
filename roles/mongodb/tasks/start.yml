@@ -1,0 +1,16 @@
+---
+- name: Setup MongoDB facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Start MongoDB (Linux)
+  ansible.builtin.service:
+    name: "{{ mongodb_service_name }}"
+    state: started
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Start MongoDB (Windows)
+  ansible.windows.win_service:
+    name: "{{ mongodb_service_name }}"
+    state: started
+  when: ansible_facts['os_family'] == 'Windows'

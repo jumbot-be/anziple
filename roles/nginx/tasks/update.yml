@@ -1,0 +1,9 @@
+---
+- name: Stop Nginx
+  ansible.builtin.include_tasks: stop.yml
+
+- name: Update Nginx
+  ansible.builtin.include_tasks: main.yml
+
+- name: Start Nginx
+  ansible.builtin.include_tasks: start.yml

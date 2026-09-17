@@ -1,0 +1,58 @@
+---
+# - name: Install Postfix and SASL modules
+#   ansible.builtin.package:
+#     name:
+#       - postfix
+#       - libsasl2-modules
+#     state: present
+#   become: true
+
+- name: Set /etc/mailname
+  ansible.builtin.copy:
+    content: "{{ ansible_facts['fqdn'] | default(ansible_facts['hostname']) }}\n"
+    dest: /etc/mailname
+    mode: '0644'
+  become: true
+  when: postfix_enabled | default(false)
+
+- name: Configure Postfix main.cf
+  ansible.builtin.template:
+    src: main.cf.j2
+    dest: /etc/postfix/main.cf
+    mode: '0644'
+  become: true
+  when: postfix_enabled | default(false)
+  notify: Restart Postfix
+
+- name: Configure Postfix generic maps
+  ansible.builtin.template:
+    src: generic.j2
+    dest: /etc/postfix/generic
+    mode: '0600'
+  become: true
+  when:
+    - postfix_enabled | default(false)
+    - postfix_from_address is defined
+    - postfix_from_address | length > 0
+  notify: Postmap generic
+
+- name: Configure Postfix sasl_passwd
+  ansible.builtin.template:
+    src: sasl_passwd.j2
+    dest: /etc/postfix/sasl_passwd
+    mode: '0600'
+  become: true
+  when:
+    - postfix_enabled | default(false)
+    - postfix_relay_user is defined
+    - postfix_relay_user | length > 0
+  no_log: true
+  notify: Postmap sasl_passwd
+
+- name: Ensure Postfix is started and enabled
+  ansible.builtin.service:
+    name: postfix
+    state: started
+    enabled: true
+  become: true
+  when: postfix_enabled | default(false)

@@ -1,0 +1,13 @@
+---
+- name: Stop MongoDB
+  ansible.builtin.include_tasks: stop.yml
+
+- name: Backup MongoDB
+  ansible.builtin.include_tasks: backup.yml
+  tags: [backup]
+
+- name: Update MongoDB
+  ansible.builtin.include_tasks: main.yml
+
+- name: Start MongoDB
+  ansible.builtin.include_tasks: start.yml

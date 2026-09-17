@@ -1,0 +1,19 @@
+---
+- name: Postmap sasl_passwd
+  ansible.builtin.command: postmap /etc/postfix/sasl_passwd
+  become: true
+  when: postfix_enabled | default(false)
+  notify: Restart Postfix
+
+- name: Postmap generic
+  ansible.builtin.command: postmap /etc/postfix/generic
+  become: true
+  when: postfix_enabled | default(false)
+  notify: Restart Postfix
+
+- name: Restart Postfix
+  ansible.builtin.service:
+    name: postfix
+    state: restarted
+  become: true
+  when: postfix_enabled | default(false)

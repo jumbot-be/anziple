@@ -1,0 +1,91 @@
+---
+- name: Download Nginx bundle
+  ansible.builtin.include_role:
+    name: integrity
+  vars:
+    integrity_artifact_url: "{{ artifacts.get('nginx', {}).get('url', '') }}"
+    integrity_artifact_dest: "{{ nginx_bundle_dest | default('') }}"
+    integrity_artifact_checksum: "{{ artifacts.get('nginx', {}).get('checksum', '') }}"
+    integrity_validate_certs: "{{ artifacts.get('nginx', {}).get('validate_certs', true) }}"
+    integrity_force_os: "{{ ansible_facts.get('os_family', 'Windows') }}"
+  when: artifacts is defined and artifacts.get('nginx') is defined
+
+- name: Create versioned directory (Windows)
+  ansible.windows.win_file:
+    path: "{{ nginx_extract_path }}"
+    state: directory
+
+- name: Extract Nginx bundle (Windows)
+  ansible.windows.win_shell: |
+    Expand-Archive -Path "{{ nginx_bundle_dest }}" -DestinationPath "{{ nginx_extract_path }}_tmp" -Force
+    $subDir = Get-ChildItem -Path "{{ nginx_extract_path }}_tmp" -Directory | Select-Object -First 1
+    Move-Item -Path "$($subDir.FullName)\*" -Destination "{{ nginx_extract_path }}" -Force
+    Remove-Item -Path "{{ nginx_extract_path }}_tmp" -Recurse -Force
+
+- name: Create profiles/ansible directory (Windows)
+  ansible.windows.win_file:
+    path: "{{ nginx_extract_path }}{{ nginx_sep }}profiles{{ nginx_sep }}ansible"
+    state: directory
+
+- name: Template config.properties
+  ansible.builtin.template:
+    src: config.properties.j2
+    dest: "{{ nginx_extract_path }}{{ nginx_sep }}profiles{{ nginx_sep }}ansible{{ nginx_sep }}config.properties"
+
+- name: Run prepare-config.sh (Windows)
+  ansible.windows.win_shell:
+    executable: "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+    cmd: "./prepare-config.sh ansible"
+    chdir: "{{ nginx_extract_path }}"
+  environment:
+    JAVA_HOME: "{{ common_java_home | default('') }}"
+  changed_when: true
+
+- name: Create Nginx symbolic link (Windows)
+  ansible.windows.win_file:
+    src: "{{ nginx_extract_path }}"
+    dest: "{{ nginx_symlink_path }}"
+    state: link
+    force: true
+
+- name: Find mandatory scripts
+  ansible.builtin.find:
+    paths: "{{ nginx_extract_path }}"
+    patterns: "[1-9]*-nginx-bundle--*.sh"
+  register: nginx_mandatory_scripts
+
+- name: Run mandatory scripts (Windows)
+  ansible.windows.win_shell:
+    executable: "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+    cmd: "./{{ item.path | basename }}"
+    chdir: "{{ nginx_extract_path }}"
+  environment:
+    JAVA_HOME: "{{ common_java_home | default('') }}"
+  loop: "{{ nginx_mandatory_scripts.files | sort(attribute='path') }}"
+  changed_when: true
+
+- name: Find service installation scripts
+  ansible.builtin.find:
+    paths: "{{ nginx_extract_path }}"
+    patterns: "*-nginx--*.sh"
+  register: nginx_service_scripts
+
+- name: Run service installation (Windows)
+  ansible.windows.win_shell:
+    executable: "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+    cmd: "./{{ item.path | basename }}"
+    chdir: "{{ nginx_extract_path }}"
+  loop: "{{ nginx_service_scripts.files }}"
+  when: nginx_service_scripts.files | length > 0
+  changed_when: true
+
+- name: Verify Nginx extraction (Windows)
+  ansible.windows.win_stat:
+    path: "{{ nginx_extract_path }}\\nginx"
+  register: nginx_verify_stat_win
+
+- name: Assert Nginx is present (Windows)
+  ansible.builtin.assert:
+    that:
+      - nginx_verify_stat_win.stat.exists
+    msg: "Nginx not found at {{ nginx_extract_path }}\\nginx"

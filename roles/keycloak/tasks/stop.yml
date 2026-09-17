@@ -1,0 +1,18 @@
+---
+- name: Setup Keycloak facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Stop Keycloak (Linux)
+  ansible.builtin.service:
+    name: "{{ keycloak_service_name }}"
+    state: stopped
+  when: ansible_facts['os_family'] != 'Windows'
+  failed_when: false
+
+- name: Stop Keycloak (Windows)
+  ansible.windows.win_service:
+    name: "{{ keycloak_service_name }}"
+    state: stopped
+  when: ansible_facts['os_family'] == 'Windows'
+  failed_when: false

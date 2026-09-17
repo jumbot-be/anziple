@@ -1,0 +1,17 @@
+---
+- name: Update Payara
+  hosts: all
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+
+  tasks:
+    - name: Run Payara update tasks
+      ansible.builtin.include_role:
+        name: payara
+        tasks_from: update
+
+    - name: Cleanup temporary files
+      ansible.builtin.include_role:
+        name: cleanup

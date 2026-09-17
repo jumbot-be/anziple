@@ -1,0 +1,18 @@
+# MongoDB Configuration Defaults
+mongodb_admin_user: "ampacimonAdmin"
+mongodb_admin_password: "a very complex password please" # Override in Vault
+mongodb_cert_subj: "/C=BE/ST=LIEGE/L=LIEGE/O=Ampacimon/OU=IT/emailAddress=sysadmin@ampacimon.com/CN={{ ansible_facts['fqdn'] }}"
+
+# OS specific paths
+mongodb_conf_path_linux: "/etc/mongod.conf"
+mongodb_pem_path_linux: "/etc/ssl/mongodb.pem"
+mongodb_log_path_linux: "/var/log/mongodb/mongod.log"
+
+mongodb_conf_path_windows: 'C:\adr\MongoDB\bin\mongod.conf'
+mongodb_pem_path_windows: 'C:\adr\MongoDB\bin\mongodb.pem'
+mongodb_log_path_windows: 'C:\adr\MongoDB\log\mongod.log'
+mongodb_bin_path_windows: 'C:\adr\MongoDB\bin'
+
+
+# until there is a version available to use  {{ ansible_facts['distribution_release'] }}
+mongo_source_url: "https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0"

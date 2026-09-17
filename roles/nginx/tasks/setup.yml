@@ -1,0 +1,29 @@
+---
+- name: Set facts for Nginx
+  ansible.builtin.set_fact:
+    nginx_service_name: "{{ (ansible_facts['os_family'] == 'Windows') | ternary('nginx', nginx_service_name_linux) }}"
+    nginx_base_path: "{{ (ansible_facts['os_family'] == 'Windows') | ternary(adr_base_path_windows, adr_base_path_linux) }}"
+    nginx_sep: '{{ (ansible_facts["os_family"] == "Windows") | ternary("\\", "/") }}'
+    nginx_symlink_path: '{{ (ansible_facts["os_family"] == "Windows") | ternary(adr_base_path_windows + "\\nginx", "/opt/nginx") }}'
+  tags: [always]
+
+- name: Set path facts for Nginx
+  ansible.builtin.set_fact:
+    nginx_bundle_dest: "{{ nginx_base_path }}{{ nginx_sep }}{{ artifacts.get('nginx', {}).get('name', '') }}"
+    nginx_version_dir: "{{ artifacts.get('nginx', {}).get('name', '') | regex_replace('\\.zip$', '') }}"
+  when: artifacts is defined and artifacts.get('nginx') is defined
+  tags: [always]
+
+- name: Set extraction path facts for Nginx
+  ansible.builtin.set_fact:
+    nginx_extract_path: "{{ nginx_base_path }}{{ nginx_sep }}{{ nginx_version_dir }}"
+  when: artifacts is defined and artifacts.get('nginx') is defined
+  tags: [always]
+
+- name: Set Linux specific path facts for Nginx
+  ansible.builtin.set_fact:
+    nginx_actual_path: "{{ nginx_extract_path }}{{ nginx_sep }}{{ nginx_extract_dir }}"
+  when:
+    - artifacts is defined and artifacts.get('nginx') is defined
+    - ansible_facts['os_family'] != 'Windows'
+  tags: [always]

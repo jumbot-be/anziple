@@ -1,0 +1,5 @@
+---
+- name: Restart MongoDB (Windows)
+  ansible.windows.win_service:
+    name: MongoDB
+    state: restarted

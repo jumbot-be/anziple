@@ -1,0 +1,113 @@
+---
+- name: Create keycloak group
+  ansible.builtin.group:
+    name: keycloak
+    system: true
+    state: present
+
+- name: Create keycloak user
+  ansible.builtin.user:
+    name: keycloak
+    group: keycloak
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+
+- name: Download Keycloak bundle
+  ansible.builtin.include_role:
+    name: integrity
+  vars:
+    integrity_artifact_url: "{{ keycloak_artifact.get('url', '') }}"
+    integrity_artifact_dest: "{{ keycloak_bundle_dest | default('') }}"
+    integrity_artifact_checksum: "{{ keycloak_artifact.get('checksum', '') }}"
+    integrity_validate_certs: "{{ keycloak_artifact.get('validate_certs', true) }}"
+    integrity_force_os: "{{ ansible_facts.get('os_family', 'Linux') }}"
+  when: keycloak_artifact and keycloak_artifact.get('url')
+
+- name: Create versioned directory (Linux)
+  ansible.builtin.file:
+    path: "{{ keycloak_extract_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Extract Keycloak bundle (Linux)
+  ansible.builtin.unarchive:
+    src: "{{ keycloak_bundle_dest }}"
+    dest: "{{ keycloak_extract_path }}"
+    remote_src: true
+
+- name: Find all shell scripts in Keycloak directory
+  ansible.builtin.find:
+    paths: "{{ keycloak_actual_path }}"
+    patterns: "*.sh"
+    recurse: true
+  register: keycloak_scripts
+
+- name: Ensure shell scripts are executable (Linux)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: '0755'
+  loop: "{{ keycloak_scripts.files }}"
+
+- name: Create profiles/ansible directory
+  ansible.builtin.file:
+    path: "{{ keycloak_actual_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible"
+    state: directory
+    mode: '0755'
+
+- name: Template config.properties
+  ansible.builtin.template:
+    src: config.properties.j2
+    dest: "{{ keycloak_actual_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible{{ keycloak_sep }}config.properties"
+    mode: '0644'
+
+- name: Run prepare-config.sh (Linux)
+  ansible.builtin.command:
+    cmd: "./prepare-config.sh ansible"
+    chdir: "{{ keycloak_actual_path }}"
+  environment:
+    JAVA_HOME: "{{ keycloak_java_home | default(common_java_home) | default('') }}"
+    PATH: "{{ keycloak_java_home | default(common_java_home) | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
+  changed_when: true
+
+- name: Create Keycloak symbolic link (Linux)
+  ansible.builtin.file:
+    src: "{{ keycloak_actual_path }}{{ keycloak_sep }}keycloak"
+    dest: "{{ keycloak_symlink_path }}"
+    state: link
+    force: true
+
+- name: Create JDK17 symbolic link (Linux)
+  ansible.builtin.file:
+    src: "{{ keycloak_java_home | default(common_java_home) }}"
+    dest: "/opt/jdk17"
+    state: link
+    force: true
+
+- name: Find mandatory scripts
+  ansible.builtin.find:
+    paths: "{{ keycloak_actual_path }}"
+    patterns: "[1-9]*-keycloak--*.sh"
+  register: keycloak_mandatory_scripts
+
+# - name: Run mandatory scripts (Linux)
+#   ansible.builtin.command:
+#     cmd: "./{{ item.path | basename }}"
+#     chdir: "{{ keycloak_actual_path }}"
+#   environment:
+#     JAVA_HOME: "{{ common_java_home | default('') }}"
+#     PATH: "{{ common_java_home | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
+#   loop: "{{ keycloak_mandatory_scripts.files | sort(attribute='path') }}"
+#   changed_when: true
+
+- name: Verify Keycloak extraction
+  ansible.builtin.stat:
+    path: "{{ keycloak_actual_path }}/keycloak"
+  register: keycloak_verify_stat
+
+- name: Assert Keycloak is present
+  ansible.builtin.assert:
+    that:
+      - keycloak_verify_stat.stat.exists
+    msg: "Keycloak server not found at {{ keycloak_actual_path }}/keycloak"

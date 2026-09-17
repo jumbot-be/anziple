@@ -1,0 +1,8 @@
+---
+- name: Import Linux handlers
+  ansible.builtin.import_tasks: linux.yml
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Import Windows handlers
+  ansible.builtin.import_tasks: windows.yml
+  when: ansible_facts['os_family'] == 'Windows'

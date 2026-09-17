@@ -1,0 +1,171 @@
+---
+- name: Ensure base directory exists on Windows
+  ansible.windows.win_file:
+    path: "{{ adr_base_path_windows }}"
+    state: directory
+
+- name: Setup JDK facts
+  ansible.builtin.include_tasks: setup_jdk.yml
+
+- name: Install JDK on Windows
+  block:
+    - name: Determine if JDK source is local (Windows)
+      ansible.builtin.set_fact:
+        common_jdk_is_local: "{{ not (item.artifact.url.startswith('http://') or item.artifact.url.startswith('https://')) }}"
+      loop: "{{ required_jdks }}"
+      register: jdk_locality_results
+
+    - name: Download Zulu JDK for Windows
+      ansible.windows.win_get_url:
+        url: "{{ item.artifact.url }}"
+        dest: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
+        checksum: "{{ item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum }}"
+        checksum_algorithm: sha256
+        validate_certs: "{{ item.artifact.validate_certs | default(ansible_validate_certs) | default(true) }}"
+      loop: "{{ required_jdks }}"
+      loop_control:
+        index_var: idx
+      when: not (jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local)
+
+    - name: Copy Zulu JDK for Windows
+      ansible.windows.win_copy:
+        src: "{{ item.artifact.url }}"
+        dest: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
+      loop: "{{ required_jdks }}"
+      loop_control:
+        index_var: idx
+      when: jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
+
+    - name: Verify JDK integrity after copy (Windows)
+      ansible.windows.win_stat:
+        path: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
+        checksum_algorithm: sha256
+      loop: "{{ required_jdks }}"
+      loop_control:
+        index_var: idx
+      register: common_jdk_stats_windows
+      when: jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
+
+    - name: Fail if JDK integrity check fails (Windows)
+      ansible.builtin.fail:
+        msg: "JDK integrity check failed for {{ item.artifact.name }}. Expected {{ item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum }}, got {{ common_jdk_stats_windows.results[idx].stat.checksum }}"
+      loop: "{{ required_jdks }}"
+      loop_control:
+        index_var: idx
+      when:
+        - jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
+        - common_jdk_stats_windows.results[idx].stat.checksum != (item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum)
+
+    - name: Check if legacy jdk symlink exists (Windows)
+      ansible.windows.win_stat:
+        path: "{{ adr_base_path_windows }}\\jdk"
+      register: common_jdk_legacy_stat
+
+    - name: Remove legacy jdk symlink if it's not a directory (Windows)
+      ansible.windows.win_file:
+        path: "{{ adr_base_path_windows }}\\jdk"
+        state: absent
+      when:
+        - common_jdk_legacy_stat.stat.exists
+        - not common_jdk_legacy_stat.stat.isdir
+        - (artifacts[jdk_front_key] is defined or artifacts[jdk_back_key] is defined)
+
+    - name: Ensure JDK parent directory exists (Windows)
+      ansible.windows.win_file:
+        path: "{{ adr_base_path_windows }}\\jdk"
+        state: directory
+      when: (artifacts[jdk_front_key] is defined or artifacts[jdk_back_key] is defined)
+
+    - name: Clean extraction directory (Windows)
+      ansible.windows.win_file:
+        path: "{{ ansible_facts['env']['TEMP'] }}\\jdk_extract_{{ item.type }}"
+        state: absent
+      loop: "{{ required_jdks }}"
+
+    - name: Create extraction directory (Windows)
+      ansible.windows.win_file:
+        path: "{{ ansible_facts['env']['TEMP'] }}\\jdk_extract_{{ item.type }}"
+        state: directory
+      loop: "{{ required_jdks }}"
+
+    - name: Extract JDK on Windows
+      community.windows.win_unzip:
+        src: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
+        dest: "{{ ansible_facts['env']['TEMP'] }}\\jdk_extract_{{ item.type }}"
+      loop: "{{ required_jdks }}"
+
+    - name: Find JDK directory name (Windows)
+      ansible.windows.win_find:
+        paths: "{{ ansible_facts['env']['TEMP'] }}\\jdk_extract_{{ item.type }}"
+        patterns: "zulu*"
+        file_type: directory
+      loop: "{{ required_jdks }}"
+      register: common_jdk_dirs_windows
+
+    - name: Ensure final destination parent directory exists (Windows)
+      ansible.windows.win_file:
+        path: "{{ (adr_base_path_windows + '\\' + item.dest_subdir) | dirname }}"
+        state: directory
+      loop: "{{ required_jdks }}"
+
+    - name: Move JDK to final destination (Windows)
+      ansible.windows.win_shell: |
+        $src = "{{ common_jdk_dirs_windows.results[idx].files[0].path }}"
+        $dest = "{{ adr_base_path_windows }}\\{{ item.dest_subdir | replace('/', '\\') }}_actual"
+        if (Test-Path $dest) {
+            Remove-Item -Path $dest -Recurse -Force
+        }
+        Move-Item -Path $src -Destination $dest -Force
+      loop: "{{ required_jdks }}"
+      loop_control:
+        index_var: idx
+      changed_when: true
+
+    - name: Create JDK symbolic link (Windows)
+      ansible.windows.win_file:
+        src: "{{ adr_base_path_windows }}\\{{ item.dest_subdir | replace('/', '\\') }}_actual"
+        dest: "{{ adr_base_path_windows }}\\{{ item.dest_subdir | replace('/', '\\') }}"
+        state: link
+        force: true
+      loop: "{{ required_jdks }}"
+
+    - name: Cleanup extraction directory (Windows)
+      ansible.windows.win_file:
+        path: "{{ ansible_facts['env']['TEMP'] }}\\jdk_extract_{{ item.type }}"
+        state: absent
+      loop: "{{ required_jdks }}"
+
+    - name: Configure JAVA_HOME globally (Windows)
+      ansible.windows.win_environment:
+        name: JAVA_HOME
+        value: "{{ common_java_home }}"
+        level: machine
+
+    - name: Add Java bin to PATH (Windows)
+      ansible.windows.win_path:
+        elements: "{{ common_java_home }}\\bin"
+        state: present
+
+    - name: Verify JAVA_HOME and java executable (Windows)
+      ansible.windows.win_shell: |
+        $javaHome = "{{ common_java_home }}"
+        if (Test-Path "$javaHome\bin\java.exe") {
+            & "$javaHome\bin\java.exe" -version
+        } else {
+            Write-Error "JAVA_HOME is not correctly set or java.exe not found at $javaHome\bin\java.exe"
+            exit 1
+        }
+      register: common_java_verify_windows
+      changed_when: false
+
+- name: Install and configure Git Bash on Windows
+  block:
+    - name: Install Git for Windows via Chocolatey
+      chocolatey.chocolatey.win_chocolatey:
+        name: git
+        state: present
+
+    - name: Add Git usr bin to PATH
+      ansible.windows.win_path:
+        elements: 'C:\Program Files\Git\usr\bin'
+        state: present

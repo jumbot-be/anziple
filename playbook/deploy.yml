@@ -1,0 +1,63 @@
+---
+- name: Deploy Common Infrastructure
+  hosts: all
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+  roles:
+    - common
+    # - postfix ### issues with logsize when not configured
+    - zabbix
+
+- name: Deploy Databases
+  hosts: "{{ (groups['database_servers'] | default([]) | length > 0) | ternary('database_servers', (groups['backend_servers'] | default([]) | length > 0) | ternary('backend_servers', 'all')) }}"
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+  roles:
+    - mongodb
+    - postgresql
+
+- name: Deploy Keycloak
+  hosts: "{{ (groups['frontend_servers'] | default([]) | length > 0) | ternary('frontend_servers', 'all') }}"
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+  roles:
+    - keycloak
+
+- name: Deploy Application and Proxy
+  hosts: "{{ (groups['frontend_servers'] | default([]) | length > 0 or groups['backend_servers'] | default([]) | length > 0) | ternary('frontend_servers:backend_servers', 'all') }}"
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+  roles:
+    - payara
+    - nginx
+
+- name: Cleanup and Summary
+  hosts: all
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+  post_tasks:
+    - name: Display PostgreSQL Credentials
+      ansible.builtin.debug:
+        msg:
+          - "PostgreSQL Super Admin: {{ postgresql_admin_user }} / {{ postgresql_admin_password }}"
+          - "PostgreSQL Keycloak User: adr_keycloak_user / {{ postgresql_adr_keycloak_password }}"
+          - "PostgreSQL Keycloak Database: adr_keycloak_{{ customer_name }} / {{ postgresql_adr_keycloak_password }}"
+          - "PostgreSQL ADR Customer User: adr_{{ customer_name }} / {{ postgresql_adr_customer_password }}"
+          - "PostgreSQL ADR Customer Database: adr_{{ customer_name }} / {{ postgresql_adr_customer_password }}"
+      when:
+        - postgresql_admin_user is defined
+        - postgresql_admin_password is defined
+
+    - name: Cleanup temporary files
+      ansible.builtin.include_role:
+        name: cleanup

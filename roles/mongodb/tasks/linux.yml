@@ -1,0 +1,143 @@
+---
+- name: Install MongoDB (Linux)
+  block:
+    - name: Install dependencies (gnupg, curl)
+      ansible.builtin.apt:
+        name:
+          - gnupg
+          - curl
+        state: present
+        update_cache: true
+
+    - name: Download MongoDB GPG key
+      ansible.builtin.shell: |
+        curl -k https://pgp.mongodb.com/server-8.0.asc -o /tmp/mongodb-server-8.0.asc
+        chmod 0644 /tmp/mongodb-server-8.0.asc
+      args:
+        executable: /bin/bash
+        creates: /tmp/mongodb-server-8.0.asc
+      register: mongodb_gpg_key_download
+
+    - name: Dearmor MongoDB GPG key
+      ansible.builtin.shell: |
+        set -o pipefail
+        cat /tmp/mongodb-server-8.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-8.0.gpg
+      args:
+        executable: /bin/bash
+        creates: /usr/share/keyrings/mongodb-server-8.0.gpg
+      when: mongodb_gpg_key_download is succeeded
+
+    - name: Create MongoDB list file
+      ansible.builtin.copy:
+        content: "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg trusted=yes ] {{ mongo_source_url }} multiverse"
+        dest: /etc/apt/sources.list.d/mongodb-org-8.0.list
+        mode: '0644'
+
+    - name: Install MongoDB packages
+      ansible.builtin.apt:
+        name:
+          - mongodb-org
+        state: present
+        update_cache: true
+
+- name: Create Log, Data and SSL directories (Linux)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: mongodb
+    group: mongodb
+    mode: '0755'
+  loop:
+    - "{{ mongodb_log_dir }}"
+    - "/var/lib/mongodb"
+    - "/etc/ssl"
+
+- name: Generate SSL certificate (Linux)
+  ansible.builtin.shell: |
+    openssl req -newkey rsa:2048 -new -x509 -days 3650 -nodes \
+    -subj "{{ mongodb_cert_subj }}" \
+    -out /tmp/mongodb-cert.crt -keyout /tmp/mongodb-cert.key
+    cat /tmp/mongodb-cert.key /tmp/mongodb-cert.crt > {{ mongodb_pem_path }}
+    chown mongodb:mongodb {{ mongodb_pem_path }}
+    chmod 0600 {{ mongodb_pem_path }}
+    rm /tmp/mongodb-cert.key /tmp/mongodb-cert.crt
+  args:
+    creates: "{{ mongodb_pem_path }}"
+
+- name: Ensure MongoDB is started for user creation (without auth)
+  ansible.builtin.service:
+    name: mongod
+    state: started
+    enabled: true
+
+- name: Create Admin User (handling no-auth bootstrap)
+  block:
+    - name: Try to create admin user (no auth)
+      ansible.builtin.shell: |
+        mongosh --port 27017 --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
+      register: mongodb_user_creation
+      failed_when: false
+      changed_when: "'Successfully added user' in mongodb_user_creation.stdout"
+
+- name: Configure MongoDB with Authorization and TLS
+  ansible.builtin.template:
+    src: mongod.conf.j2
+    dest: "{{ mongodb_conf_path }}"
+    mode: '0644'
+  notify: Restart MongoDB
+
+- name: Create Systemd override (Linux)
+  ansible.builtin.file:
+    path: /lib/systemd/system/mongod.service.d
+    state: directory
+    mode: '0755'
+
+- name: Deploy Systemd override file (Linux)
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      StartLimitIntervalSec=1800
+      StartLimitBurst=3
+      [Service]
+      Restart=on-failure
+      RestartSec=5s
+    dest: /lib/systemd/system/mongod.service.d/override.conf
+    mode: '0644'
+  notify: Reload Systemd
+
+- name: Configure Logrotate (Linux)
+  ansible.builtin.copy:
+    content: |
+      {{ mongodb_log_dir }}/mongod.log {
+        daily
+        size 50M
+        rotate 10
+        missingok
+        compress
+        delaycompress
+        notifempty
+        create 640 mongodb mongodb
+        sharedscripts
+        postrotate
+          /bin/kill -SIGUSR1 `systemctl show --property MainPID --value mongod.service` >/dev/null 2>&1
+        endscript
+      }
+    dest: /etc/logrotate.d/mongod
+    mode: '0644'
+
+- name: Create MongoDB symbolic link (Linux)
+  ansible.builtin.file:
+    src: "/var/lib/mongodb"
+    dest: "{{ mongodb_symlink_path_linux }}"
+    state: link
+    force: true
+
+- name: Flush handlers to apply security configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify connection without credentials must fail
+  ansible.builtin.shell: |
+    mongosh --port 27017 --eval 'db.runCommand({connectionStatus : 1})'
+  register: mongodb_auth_test
+  failed_when: mongodb_auth_test.rc == 0
+  changed_when: false

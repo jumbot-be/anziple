@@ -1,0 +1,8 @@
+---
+- name: Set facts for MongoDB
+  ansible.builtin.set_fact:
+    mongodb_service_name: "{{ (ansible_facts['os_family'] == 'Windows') | ternary('MongoDB', mongodb_service_name_linux) }}"
+    mongodb_conf_path: "{{ (ansible_facts['os_family'] == 'Windows') | ternary(mongodb_conf_path_windows, mongodb_conf_path_linux) }}"
+    mongodb_pem_path: "{{ (ansible_facts['os_family'] == 'Windows') | ternary(mongodb_pem_path_windows, mongodb_pem_path_linux) }}"
+    mongodb_log_dir: '{{ (ansible_facts["os_family"] == "Windows") | ternary("C:\\adr\\MongoDB\\log", "/var/log/mongodb") }}'
+  tags: [always]

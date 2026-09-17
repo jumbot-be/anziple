@@ -1,0 +1,12 @@
+---
+- name: Setup Payara facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Include Linux tasks
+  ansible.builtin.include_tasks: linux.yml
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Include Windows tasks
+  ansible.builtin.include_tasks: windows.yml
+  when: ansible_facts['os_family'] == 'Windows'

@@ -1,0 +1,48 @@
+apcm_version: 4.0.10
+payara_bundle_version: 5.82.0-4.0.10
+keycloak_bundle_version: 26.4-4.0.10
+nginx_bundle_version: 4.0.10
+keycloak_flavor: rh
+mongodb_version: 8.0.16
+artifacts:
+  adg_server:
+    name: apcm-adg-server-war-4.0.10.war
+    url: /opt/SOURCES/ADR-4.0.10/backend/apcm-adg-server-war-4.0.10.war
+    checksum: sha256:076e63e0fcfa80fe8fa6387d8ee69e3c1bcc5106bae3f165f4c5f87a46a25b34
+  apcm_server:
+    name: apcm-server-war-4.0.10.war
+    url: /opt/SOURCES/ADR-4.0.10/backend/apcm-server-war-4.0.10.war
+    checksum: sha256:b0490528b2b82769b17cfa440df3d71ae66601ee2624a0f88fc517825efb2cae
+  explorer_ear:
+    name: ampacimon-explorer-ear-4.0.10.ear
+    url: /opt/SOURCES/ADR-4.0.10/frontend/ampacimon-explorer-ear-4.0.10.ear
+    checksum: sha256:94593c76951e1689817e123e2310a96784b379f903852170d8b69b4f8a397513
+  rest_api:
+    name: ampacimon-rest-api-ms-4.0.10.war
+    url: /opt/SOURCES/ADR-4.0.10/frontend/ampacimon-rest-api-ms-4.0.10.war
+    checksum: sha256:2a035b69985b6438fa846d8d8c06b125bb090c8730380fbff1df07bf96af7b4a
+  jdk_linux:
+    name: zulu17.66.19-ca-jdk17.0.19-linux_x64.tar.gz
+    url: /opt/SOURCES/ADR-4.0.10/jdk/front/zulu17.66.19-ca-jdk17.0.19-linux_x64.tar.gz
+    checksum: sha256:ad319aabe659c18fa63fadb446026a7c7f5260f02a6159f51195735d20e7aa1c
+  jdk_windows:
+    name: zulu17.66.19-ca-jdk17.0.19-win_x64.zip
+    url: /opt/SOURCES/ADR-4.0.10/jdk/front/zulu17.66.19-ca-jdk17.0.19-win_x64.zip
+    checksum: sha256:463c85454c45fd3827df7ccfaa2b14f136eb972387da697a349a42867334328a
+  keycloak_rh:
+    name: apcm-keycloak-bundle-26.4.12-RedHat.zip
+    url: /opt/SOURCES/ADR-4.0.10/keycloak/apcm-keycloak-bundle-26.4.12-RedHat.zip
+    checksum: sha256:176ad71ed48484feb63b37ac13681d5789fac1a3e713d1b1d97aa80a6e134008
+  keycloak_standard:
+    name: apcm-keycloak-bundle-26.4-4.0.10-Keycloak.zip
+    url: /opt/SOURCES/ADR-4.0.10/keycloak/apcm-keycloak-bundle-26.4-4.0.10-Keycloak.zip
+    checksum: sha256:a9c078d969c872df1ae04ce1cdadd5a4bc3c04699f7eccde7c7fb2c6c74f875c
+  nginx:
+    name: apcm-nginx-bundle-4.0.10-nginx-bundle.zip
+    url: /opt/SOURCES/ADR-4.0.10/nginx/apcm-nginx-bundle-4.0.10-nginx-bundle.zip
+    checksum: sha256:dca023b0db3a3e4df33e7abf0352cc58a4f97a0eafe199f2e8a4aa8099feeed4
+  payara:
+    name: apcm-payara-bundle-5.82.0-4.0.10-payara-bundle.zip
+    url: /opt/SOURCES/ADR-4.0.10/payara/apcm-payara-bundle-5.82.0-4.0.10-payara-bundle.zip
+    checksum: sha256:5b9c68daddaae3b22f73e6ed27d97e2c86b0fbad9c836fee5e047d80b737734c
+

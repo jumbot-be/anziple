@@ -1,0 +1,54 @@
+---
+- name: Stop and disable MongoDB service (Windows)
+  ansible.windows.win_service:
+    name: MongoDB
+    state: stopped
+    start_mode: disabled
+  failed_when: false
+
+- name: Uninstall MongoDB package (Windows)
+  ansible.windows.win_package:
+    product_id: '{3F3C6D68-8E9F-4D8D-9E9D-0B86E8D68B6E}' # Dummy or actual if known, using name is safer if ID is unknown but we'll try name
+    name: 'MongoDB 8.0.16 2008 R2Plus SSL (64 bit)'
+    state: absent
+  failed_when: false
+
+- name: Kill Java processes running from base path (Windows)
+  ansible.windows.win_shell: |
+    $basePath = "{{ adr_base_path_windows }}"
+    Get-Process | Where-Object { $_.Path -like "$($basePath.Replace('\', '\\'))*" -and $_.ProcessName -eq "java" } | Stop-Process -Force
+  failed_when: false
+
+- name: Find Java bin directory (Windows)
+  ansible.windows.win_find:
+    paths: "{{ adr_base_path_windows }}"
+    patterns: "zulu*"
+    file_type: directory
+  register: deinstall_jdk_dir_windows
+
+- name: Set Java bin fact (Windows)
+  ansible.builtin.set_fact:
+    deinstall_java_bin: "{{ deinstall_jdk_dir_windows.files[0].path }}\\bin"
+  when: deinstall_jdk_dir_windows.matched > 0
+
+- name: Remove Java bin from PATH (Windows)
+  ansible.windows.win_path:
+    elements: "{{ deinstall_java_bin }}"
+    state: absent
+  when: deinstall_java_bin is defined
+
+- name: Remove base installation directory (Windows)
+  ansible.windows.win_file:
+    path: "{{ adr_base_path_windows }}"
+    state: absent
+
+- name: Remove JAVA_HOME environment variable (Windows)
+  ansible.windows.win_environment:
+    name: JAVA_HOME
+    state: absent
+    level: machine
+
+- name: Remove Git usr bin from PATH (Windows)
+  ansible.windows.win_path:
+    elements: 'C:\Program Files\Git\usr\bin'
+    state: absent

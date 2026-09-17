@@ -1,0 +1,20 @@
+---
+- name: Backup Keycloak Database (PostgreSQL)
+  ansible.builtin.include_role:
+    name: postgresql
+    tasks_from: backup
+  tags: [backup]
+
+- name: Update Common Components (JDK)
+  ansible.builtin.include_role:
+    name: common
+  tags: [common, jdk]
+
+- name: Stop Keycloak
+  ansible.builtin.include_tasks: stop.yml
+
+- name: Update Keycloak
+  ansible.builtin.include_tasks: main.yml
+
+- name: Start Keycloak
+  ansible.builtin.include_tasks: start.yml

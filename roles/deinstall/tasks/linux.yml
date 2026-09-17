@@ -1,0 +1,109 @@
+---
+- name: Stop and disable Zabbix Agent (Linux)
+  ansible.builtin.service:
+    name: zabbix-agent
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Remove Zabbix Agent package (Linux)
+  ansible.builtin.apt:
+    name: zabbix-agent
+    state: absent
+    purge: true
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Remove Zabbix Agent package (RedHat)
+  ansible.builtin.dnf:
+    name: zabbix-agent
+    state: absent
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Remove Zabbix directories and probes
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /opt/zabbix
+    - /etc/zabbix
+
+- name: Remove Zabbix cron jobs
+  ansible.builtin.cron:
+    name: "Zabbix probe {{ item }}"
+    state: absent
+  loop:
+    - lsofprobe
+    - ulimitprobe
+    - netstatprobe
+    - tcpstatus
+
+- name: Stop and disable MongoDB (Linux)
+  ansible.builtin.service:
+    name: mongod
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Remove MongoDB packages (Linux)
+  ansible.builtin.apt:
+    name:
+      - mongodb-org
+      - mongodb-org-database
+      - mongodb-org-server
+      - mongodb-mongosh
+      - mongodb-org-mongos
+      - mongodb-org-tools
+    state: absent
+    purge: true
+  failed_when: false
+
+- name: Remove MongoDB directories (Linux)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/mongodb
+    - /var/log/mongodb
+
+- name: Remove mongodb user and group (Linux)
+  ansible.builtin.user:
+    name: mongodb
+    state: absent
+    remove: true
+    force: true
+  failed_when: false
+
+- name: Kill Java processes running from base path (Linux)
+  ansible.builtin.shell: |
+    PIDS=$(ps aux | grep java | grep "{{ adr_base_path_linux }}" | grep -v grep | awk '{print $2}')
+    if [ -n "$PIDS" ]; then
+      kill -9 $PIDS
+    fi
+  args:
+    executable: /bin/bash
+  failed_when: false
+
+- name: Remove base installation directory (Linux)
+  ansible.builtin.file:
+    path: "{{ adr_base_path_linux }}"
+    state: absent
+
+- name: Revert Java configuration (Linux)
+  ansible.builtin.file:
+    path: /etc/profile.d/java.sh
+    state: absent
+
+- name: Remove JAVA_HOME from /etc/environment (Linux)
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    regexp: '^JAVA_HOME='
+    state: absent
+
+- name: Remove Java from /etc/bash.bashrc (Linux)
+  ansible.builtin.lineinfile:
+    path: /etc/bash.bashrc
+    regexp: "{{ item }}"
+    state: absent
+  loop:
+    - '^export JAVA_HOME='
+    - '^export PATH=.*JAVA_HOME/bin'

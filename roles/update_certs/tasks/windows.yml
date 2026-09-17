@@ -1,0 +1,52 @@
+---
+- name: Ensure certificate destination directory exists (Windows)
+  ansible.windows.win_file:
+    path: "{{ update_certs_cert_dest }}"
+    state: directory
+
+- name: Ensure key destination directory exists (Windows)
+  ansible.windows.win_file:
+    path: "{{ update_certs_key_dest }}"
+    state: directory
+
+- name: Ensure temp directory exists (Windows)
+  ansible.windows.win_file:
+    path: "{{ update_certs_temp_dir }}"
+    state: directory
+  when: use_s3_cert or use_s3_key
+
+- name: Copy SSL certificate from S3 (Windows)
+  ansible.windows.win_copy:
+    src: "{{ update_certs_temp_dir }}/{{ cert_filename }}"
+    dest: "{{ update_certs_cert_dest }}/{{ cert_filename }}"
+  when:
+    - use_s3_cert
+    - cert_filename != ''
+  notify: restart services
+
+- name: Copy SSL certificate from local (Windows)
+  ansible.windows.win_copy:
+    src: "{{ update_certs_cert_src }}"
+    dest: "{{ update_certs_cert_dest }}/{{ update_certs_cert_src | win_basename | replace('.', '_') }}"
+  when:
+    - not use_s3_cert
+    - update_certs_cert_src != ''
+  notify: restart services
+
+- name: Copy SSL key from S3 (Windows)
+  ansible.windows.win_copy:
+    src: "{{ update_certs_temp_dir }}/{{ key_filename }}"
+    dest: "{{ update_certs_key_dest }}/{{ key_filename }}"
+  when:
+    - use_s3_key
+    - key_filename != ''
+  notify: restart services
+
+- name: Copy SSL key from local (Windows)
+  ansible.windows.win_copy:
+    src: "{{ update_certs_key_src }}"
+    dest: "{{ update_certs_key_dest }}/{{ update_certs_key_src | win_basename | replace('.', '_') }}"
+  when:
+    - not use_s3_key
+    - update_certs_key_src != ''
+  notify: restart services

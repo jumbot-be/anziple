@@ -1,0 +1,30 @@
+---
+- name: Setup MongoDB facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Stop MongoDB (Linux)
+  block:
+    - name: Stop MongoDB service (Linux)
+      ansible.builtin.service:
+        name: "{{ mongodb_service_name }}"
+        state: stopped
+
+    - name: Ensure port 27017 is free (Linux)
+      ansible.builtin.shell: |
+        PID=$(lsof -t -i :27017)
+        if [ -n "$PID" ]; then
+          echo "Port 27017 is still in use by PID $PID. Killing it..."
+          kill -9 $PID
+        fi
+      args:
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+  when: ansible_facts['os_family'] != 'Windows'
+
+- name: Stop MongoDB (Windows)
+  ansible.windows.win_service:
+    name: "{{ mongodb_service_name }}"
+    state: stopped
+  when: ansible_facts['os_family'] == 'Windows'
