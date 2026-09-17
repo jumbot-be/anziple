@@ -97,14 +97,14 @@
         password: "{{ postgresql_admin_password }}"
         role_attr_flags: SUPERUSER
         login_user: postgres
-      no_log: true
+      no_log: false
 
     - name: Create ADR Customer User
       community.postgresql.postgresql_user:
         name: "{{ postgresql_adr_customer_user }}"
         password: "{{ postgresql_adr_customer_password }}"
         login_user: postgres
-      no_log: true
+      no_log: false
 
     - name: Get available locales
       ansible.builtin.command: locale -a
@@ -141,7 +141,7 @@
         name: "{{ postgresql_keycloak_user }}"
         password: "{{ postgresql_adr_keycloak_password }}"
         login_user: postgres
-      no_log: true
+      no_log: false
 
     - name: Create Keycloak Database
       community.postgresql.postgresql_db:

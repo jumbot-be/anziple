@@ -46,7 +46,7 @@
     - postfix_enabled | default(false)
     - postfix_relay_user is defined
     - postfix_relay_user | length > 0
-  no_log: true
+  no_log: false
   notify: Postmap sasl_passwd
 
 - name: Ensure Postfix is started and enabled

@@ -8,11 +8,12 @@
     path: "{{ postgresql_backup_dir }}"
     state: directory
 
-- name: Perform PostgreSQL Backup (Windows)
+- name: Perform PostgreSQL Backup (Windows - Local)
   ansible.windows.win_shell: |
     $env:PGPASSWORD = "{{ postgresql_admin_password }}"
     & "{{ postgresql_bin_path_windows }}\pg_dump.exe" -U "{{ postgresql_admin_user }}" -f "{{ postgresql_backup_dir }}\{{ item }}.sql" "{{ item }}"
   loop:
     - "{{ postgresql_adr_db_name }}"
     - "{{ postgresql_keycloak_db_name }}"
-  no_log: true
+  no_log: false
+  when: not (postgresql_rds_enabled | default(false))

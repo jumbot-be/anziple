@@ -33,7 +33,6 @@ include_release_vars: "vars/releases/4.0.9.yml"
 
 # Multi-server Service Discovery
 # Logic: use specific groups if defined, otherwise fallback to backend or all hosts.
-postgresql_host: "{{ (groups['database_servers'] | default([]) | length > 0) | ternary(groups['database_servers'] | first, (groups['backend_servers'] | default([]) | length > 0) | ternary(groups['backend_servers'] | first, 'localhost')) }}"
 mongodb_host: "{{ (groups['database_servers'] | default([]) | length > 0) | ternary(groups['database_servers'] | first, (groups['backend_servers'] | default([]) | length > 0) | ternary(groups['backend_servers'] | first, 'localhost')) }}"
 #keycloak_host: "{{ (groups['frontend_servers'] | default([]) | length > 0) | ternary(groups['frontend_servers'] | first, 'localhost') }}"
 
@@ -63,7 +62,25 @@ allowed_network_range: "127.0.0.1/32"
 mongodb_bind_ips: "127.0.0.1"
 
 # PostgreSQL Configuration
-customer_name: "customer"
+customer_name: "jula"
 postgresql_version: "14"
 postgresql_admin_user: "adr_superadmin"
 postgresql_enabled: false
+
+# RDS/External PostgreSQL - when postgresql_enabled is false but you want to use RDS
+postgresql_rds_enabled: true
+
+# PostgreSQL host resolution logic:
+# 1. If RDS is enabled, use RDS hostname
+# 2. Otherwise, use database_servers group if exists
+# 3. Otherwise, use backend_servers group if exists  
+# 4. Otherwise, default to localhost
+postgresql_host: >-
+  {{
+    (postgresql_rds_enabled | default(false))
+    | ternary(postgresql_rds_hostname | default(''),
+              (groups['database_servers'] | default([]) | length > 0)
+              | ternary(groups['database_servers'] | first,
+                        (groups['backend_servers'] | default([]) | length > 0)
+                        | ternary(groups['backend_servers'] | first, 'localhost')))
+  }}

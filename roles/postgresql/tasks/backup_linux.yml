@@ -9,7 +9,7 @@
     state: directory
     mode: '0755'
 
-- name: Perform PostgreSQL Backup (Linux)
+- name: Perform PostgreSQL Backup (Linux - Local)
   community.postgresql.postgresql_db:
     name: "{{ item }}"
     state: dump
@@ -19,3 +19,4 @@
     - "{{ postgresql_keycloak_db_name }}"
   become: true
   become_user: postgres
+  when: not (postgresql_rds_enabled | default(false))

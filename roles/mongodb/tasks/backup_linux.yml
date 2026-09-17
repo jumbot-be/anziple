@@ -12,5 +12,5 @@
 - name: Perform MongoDB Backup (Linux)
   ansible.builtin.shell: |
     mongodump --port 27017 --username {{ mongodb_admin_user }} --password {{ mongodb_admin_password }} --authenticationDatabase admin --out {{ mongodb_backup_dir }}/mongodb-backup
-  no_log: true
+  no_log: false
   changed_when: true

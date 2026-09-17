@@ -1,0 +1,27 @@
+---
+# PostgreSQL Backup for RDS/External databases
+# Uses pg_dump to connect to remote RDS instance
+
+- name: Set backup directory fact for RDS
+  ansible.builtin.set_fact:
+    postgresql_backup_dir: "/opt/adr-backup-{{ apcm_version }}"
+
+- name: Ensure backup directory exists (RDS)
+  ansible.builtin.file:
+    path: "{{ postgresql_backup_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Perform PostgreSQL Backup on RDS (using pg_dump)
+  ansible.builtin.command: >
+    pg_dump -h {{ postgresql_rds_hostname }} -p {{ postgresql_rds_port }} 
+           -U {{ postgresql_rds_admin_user | default(postgresql_admin_user) }} 
+           -d {{ item }} 
+           --format=plain --file={{ postgresql_backup_dir }}/{{ item }}.sql
+  environment:
+    PGPASSWORD: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+  loop:
+    - "{{ postgresql_adr_db_name }}"
+    - "{{ postgresql_keycloak_db_name }}"
+  no_log: false
+  changed_when: false

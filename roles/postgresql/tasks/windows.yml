@@ -62,13 +62,13 @@
       ansible.windows.win_shell: |
         $env:PGPASSWORD = "{{ postgresql_admin_password }}"
         & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "DO {{ '$$' }} BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ postgresql_admin_user }}') THEN CREATE ROLE {{ postgresql_admin_user }} WITH SUPERUSER LOGIN PASSWORD '{{ postgresql_admin_password }}'; END IF; END {{ '$$' }};"
-      no_log: true
+      no_log: false
 
     - name: Create ADR Customer User (Windows)
       ansible.windows.win_shell: |
         $env:PGPASSWORD = "{{ postgresql_admin_password }}"
         & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "DO {{ '$$' }} BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ postgresql_adr_customer_user }}') THEN CREATE ROLE \"{{ postgresql_adr_customer_user }}\" WITH LOGIN PASSWORD '{{ postgresql_adr_customer_password }}'; END IF; END {{ '$$' }};"
-      no_log: true
+      no_log: false
 
     - name: Create ADR Customer Database (Windows)
       ansible.windows.win_shell: |
@@ -77,13 +77,13 @@
         if ($dbExists -ne "1") {
             & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "CREATE DATABASE \"{{ postgresql_adr_db_name }}\" OWNER \"{{ postgresql_adr_customer_user }}\" LC_COLLATE = '{{ postgresql_collation }}' LC_CTYPE = '{{ postgresql_collation }}';"
         }
-      no_log: true
+      no_log: false
 
     - name: Create Keycloak User (Windows)
       ansible.windows.win_shell: |
         $env:PGPASSWORD = "{{ postgresql_admin_password }}"
         & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "DO {{ '$$' }} BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ postgresql_keycloak_user }}') THEN CREATE ROLE \"{{ postgresql_keycloak_user }}\" WITH LOGIN PASSWORD '{{ postgresql_adr_keycloak_password }}'; END IF; END {{ '$$' }};"
-      no_log: true
+      no_log: false
 
     - name: Create Keycloak Database (Windows)
       ansible.windows.win_shell: |
@@ -92,4 +92,4 @@
         if ($dbExists -ne "1") {
             & "{{ postgresql_bin_path_windows }}\psql.exe" -U postgres -c "CREATE DATABASE \"{{ postgresql_keycloak_db_name }}\" OWNER \"{{ postgresql_keycloak_user }}\" LC_COLLATE = '{{ postgresql_collation }}' LC_CTYPE = '{{ postgresql_collation }}';"
         }
-      no_log: true
+      no_log: false

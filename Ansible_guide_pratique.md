@@ -115,8 +115,11 @@ postfix_relay_user: "user@example.com"
 postfix_relay_password: "password"
 postfix_from_address: "deploy@example.com"
 
-# Client PostgreSQL (si DB sur serveur dedie)
-postgresql_host: "10.0.0.3"
+# PostgreSQL
+# - Si installation locale : postgresql_enabled: true (defaut: false)
+# - Si RDS/Externe : postgresql_enabled: false, postgresql_rds_enabled: true
+postgresql_enabled: false
+postgresql_host: "10.0.0.3"  # Utilise si DB sur serveur dedie (ou RDS si rds_enabled)
 ```
 
 ### 3. Secrets
@@ -129,6 +132,10 @@ payara_admin_password: "admin"
 postgresql_admin_password: "StrongAdminPassword123!"
 postgresql_adr_keycloak_password: "StrongKeycloakPassword123!"
 postgresql_adr_customer_password: "StrongAdrCustomerPassword123!"
+
+# Si utilisation de RDS/PostgreSQL externe
+# postgresql_rds_admin_user: "master_user"
+# postgresql_rds_admin_password: "RDS_MasterPassword123!"
 ```
 
 **Chiffrement**
@@ -137,7 +144,60 @@ ansible-vault encrypt group_vars/all_secrets.yml
 ansible-vault edit group_vars/all_secrets.yml
 ```
 
-### 4. Sources des artefacts
+### 4. PostgreSQL avec AWS RDS
+
+Par defaut, PostgreSQL est installe localement. Pour utiliser **AWS RDS** (ou une instance PostgreSQL externe) :
+
+**Variables dans `group_vars/all.yml` ou `host_vars/<serveur>.yml`**
+```yaml
+# Desactive l'installation locale
+postgresql_enabled: false
+
+# Active le mode RDS/Externe
+postgresql_rds_enabled: true
+
+# Configuration de l'instance RDS
+postgresql_rds_hostname: "mon-instance.123456789012.us-east-1.rds.amazonaws.com"
+postgresql_rds_port: 5432
+```
+
+**Credentials dans `group_vars/all_secrets.yml` (a chiffrer)**
+```yaml
+# Utilisateur administrateur RDS (master user)
+postgresql_rds_admin_user: "master_user"
+postgresql_rds_admin_password: "RDS_MasterPassword123!"
+
+# Optionnel: si l'utilisateur admin RDS = utilisateur admin local
+# postgresql_admin_password: "RDS_MasterPassword123!"
+```
+
+**Resultat**
+- `postgresql_host` pointe automatiquement vers l'endpoint RDS
+- Les bases **ADR** et **Keycloak** sont creees sur RDS
+- Les utilisateurs sont crees sur RDS
+- Les sauvegardes utilisent `pg_dump` vers l'hote distant
+- Keycloak et Payara se connectent automatiquement a RDS
+
+**Exemple complet avec RDS**
+```yaml
+# host_vars/mon-serveur-application.yml
+postgresql_enabled: false
+postgresql_rds_enabled: true
+postgresql_rds_hostname: "adr-db-dev.c123456789012.us-east-1.rds.amazonaws.com"
+postgresql_rds_port: 5432
+customer_name: "monclient"
+
+# host_vars/mon-serveur-application_secrets.yml
+postgresql_rds_admin_user: "admin_rds"
+postgresql_rds_admin_password: "{{ vault_rds_password }}"
+postgresql_admin_password: "{{ vault_rds_password }}"  # Optionnel
+postgresql_adr_keycloak_password: "StrongKeycloakPassword123!"
+postgresql_adr_customer_password: "StrongAdrCustomerPassword123!"
+```
+
+**Note** : Pour RDS, les sauvegardes automatiques AWS peuvent etre utilisees. Les sauvegardes Ansible via `pg_dump` sont toujours disponibles.
+
+### 5. Sources des artefacts
 
 Fichier: `vars/releases/X.Y.Z.yml`
 

@@ -3,10 +3,18 @@
   ansible.builtin.include_tasks: setup.yml
   tags: [always]
 
+- name: Include RDS backup tasks
+  ansible.builtin.include_tasks: backup_rds.yml
+  when: postgresql_rds_enabled | default(false)
+
 - name: Include Linux backup tasks
   ansible.builtin.include_tasks: backup_linux.yml
-  when: ansible_facts['os_family'] != 'Windows'
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+    - not (postgresql_rds_enabled | default(false))
 
 - name: Include Windows backup tasks
   ansible.builtin.include_tasks: backup_windows.yml
-  when: ansible_facts['os_family'] == 'Windows'
+  when:
+    - ansible_facts['os_family'] == 'Windows'
+    - not (postgresql_rds_enabled | default(false))

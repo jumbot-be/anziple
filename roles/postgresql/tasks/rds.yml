@@ -1,0 +1,139 @@
+---
+# Configuration PostgreSQL pour AWS RDS (ou autre instance externe)
+# Ce fichier est exécuté quand postgresql_rds_enabled: true
+# Il ne fait PAS d'installation locale, mais configure les bases et utilisateurs sur l'hôte distant
+# Process: 1) Create users, 2) Create databases, 3) Grant privileges, 4) Set ownership
+
+- name: Set RDS facts
+  ansible.builtin.set_fact:
+    postgresql_rds_hostname: "{{ postgresql_rds_hostname | default('') }}"
+    postgresql_rds_port: "{{ postgresql_rds_port | default(5432) }}"
+  tags: [always]
+
+- name: Configure PostgreSQL Users and Databases on RDS
+  when: postgresql_rds_hostname | trim != ''
+  block:
+    - name: Get available locales (for collation)
+      ansible.builtin.command: locale -a
+      register: available_locales
+      changed_when: false
+      when: ansible_facts['os_family'] != 'Windows'
+
+    - name: Set active collation fact
+      ansible.builtin.set_fact:
+        postgresql_active_collation: >-
+          {%- if postgresql_linux_collation in available_locales.stdout_lines -%}
+            {{ postgresql_linux_collation }}
+          {%- elif postgresql_linux_collation_lower in available_locales.stdout_lines -%}
+            {{ postgresql_linux_collation_lower }}
+          {%- elif 'en_US.utf8' in available_locales.stdout_lines -%}
+            en_US.utf8
+          {%- elif 'en_US.UTF-8' in available_locales.stdout_lines -%}
+            en_US.UTF-8
+          {%- else -%}
+            C.UTF-8
+          {%- endif -%}
+      when: ansible_facts['os_family'] != 'Windows'
+
+    # Step 1: Create users first
+    - name: Create Keycloak User on RDS
+      community.postgresql.postgresql_user:
+        name: "{{ postgresql_keycloak_user }}"
+        password: "{{ postgresql_adr_keycloak_password }}"
+        state: present
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false
+
+    - name: Create ADR Customer User on RDS
+      community.postgresql.postgresql_user:
+        name: "{{ postgresql_adr_customer_user }}"
+        password: "{{ postgresql_adr_customer_password }}"
+        state: present
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false
+
+    # Step 2: Create databases (without owner to avoid SET ROLE error on RDS)
+    - name: Create Keycloak Database on RDS
+      community.postgresql.postgresql_db:
+        name: "{{ postgresql_keycloak_db_name }}"
+        encoding: UTF8
+        lc_collate: "{{ postgresql_active_collation | default('en_US.UTF-8') }}"
+        lc_ctype: "{{ postgresql_active_collation | default('en_US.UTF-8') }}"
+        template: template0
+        state: present
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false
+
+    - name: Create ADR Customer Database on RDS
+      community.postgresql.postgresql_db:
+        name: "{{ postgresql_adr_db_name }}"
+        encoding: UTF8
+        lc_collate: "{{ postgresql_active_collation | default('en_US.UTF-8') }}"
+        lc_ctype: "{{ postgresql_active_collation | default('en_US.UTF-8') }}"
+        template: template0
+        state: present
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false
+
+    # Step 3: Grant all privileges and set ownership
+    - name: Grant all privileges on Keycloak database to Keycloak user
+      community.postgresql.postgresql_privs:
+        database: "{{ postgresql_keycloak_db_name }}"
+        roles: "{{ postgresql_keycloak_user }}"
+        privs: ALL
+        type: database
+        state: present
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false
+
+    - name: Set Keycloak user as owner of Keycloak database
+      community.postgresql.postgresql_owner:
+        db: "{{ postgresql_keycloak_db_name }}"
+        obj_name: "{{ postgresql_keycloak_db_name }}"
+        obj_type: database
+        new_owner: "{{ postgresql_keycloak_user }}"
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false
+
+    - name: Grant all privileges on ADR database to ADR user
+      community.postgresql.postgresql_privs:
+        database: "{{ postgresql_adr_db_name }}"
+        roles: "{{ postgresql_adr_customer_user }}"
+        privs: ALL
+        type: database
+        state: present
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false
+
+    - name: Set ADR user as owner of ADR database
+      community.postgresql.postgresql_owner:
+        db: "{{ postgresql_adr_db_name }}"
+        obj_name: "{{ postgresql_adr_db_name }}"
+        obj_type: database
+        new_owner: "{{ postgresql_adr_customer_user }}"
+        login_host: "{{ postgresql_rds_hostname }}"
+        login_port: "{{ postgresql_rds_port }}"
+        login_user: "{{ postgresql_rds_admin_user | default(postgresql_admin_user) }}"
+        login_password: "{{ postgresql_rds_admin_password | default(postgresql_admin_password) }}"
+      no_log: false

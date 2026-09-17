@@ -2,9 +2,11 @@
 - name: Setup PostgreSQL facts
   ansible.builtin.include_tasks: setup.yml
   tags: [always]
-  when:
-    - postgresql_enabled | default(false)
-    - payara_type | default('') != 'frontend'
+  when: postgresql_enabled | default(false) or postgresql_rds_enabled | default(false)
+
+- name: Include RDS/External tasks
+  ansible.builtin.include_tasks: rds.yml
+  when: postgresql_rds_enabled | default(false)
 
 - name: Include Linux tasks
   ansible.builtin.include_tasks: linux.yml

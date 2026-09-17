@@ -28,6 +28,21 @@ install_ansible_linux() {
             exit 1
         fi
     fi
+    # Install psycopg2/psycopg2-binary for PostgreSQL modules
+    if ! python3 -c "import psycopg2" 2>/dev/null; then
+        echo "Installing psycopg2 for PostgreSQL support..."
+        if [ -f /etc/debian_version ]; then
+            # On Debian/Ubuntu, use apt to avoid externally-managed-environment error (PEP 668)
+            sudo apt-get install -y python3-psycopg2 || echo "Warning: Could not install python3-psycopg2 via apt"
+        else
+            PIP_CMD=$(command -v pip3 || command -v pip || echo "")
+            if [ -n "$PIP_CMD" ]; then
+                $PIP_CMD install psycopg2-binary --break-system-packages 2>/dev/null || $PIP_CMD install psycopg2-binary || echo "Warning: Could not install psycopg2-binary via pip."
+            else
+                echo "Warning: pip not found. Please install psycopg2 manually."
+            fi
+        fi
+    fi
 }
 
 install_ansible_windows() {
@@ -39,6 +54,16 @@ install_ansible_windows() {
         fi
         PIP_CMD=$(command -v pip3 || command -v pip)
         $PIP_CMD install ansible
+    fi
+    # Install psycopg2-binary for PostgreSQL modules
+    if ! python3 -c "import psycopg2" 2>/dev/null && ! python -c "import psycopg2" 2>/dev/null; then
+        echo "Installing psycopg2-binary for PostgreSQL support..."
+        PIP_CMD=$(command -v pip3 || command -v pip || echo "")
+        if [ -n "$PIP_CMD" ]; then
+            $PIP_CMD install psycopg2-binary || echo "Warning: Could not install psycopg2-binary via pip."
+        else
+            echo "Warning: pip not found. Please install psycopg2 manually with: pip install psycopg2-binary"
+        fi
     fi
 }
 
@@ -57,7 +82,7 @@ fi
 echo "Ansible is ready. Proceeding with collections and prerequisites..."
 
 # Install required collections
-ansible-galaxy collection install ansible.windows community.windows chocolatey.chocolatey amazon.aws
+ansible-galaxy collection install ansible.windows community.windows chocolatey.chocolatey amazon.aws community.postgresql
 
 # Install ansible-lint for development
 if ! command -v ansible-lint &> /dev/null; then

@@ -11,4 +11,4 @@
 - name: Perform MongoDB Backup (Windows)
   ansible.windows.win_shell: |
     & "C:\adr\MongoDB\bin\mongodump.exe" --port 27017 --username {{ mongodb_admin_user }} --password {{ mongodb_admin_password }} --authenticationDatabase admin --out "{{ mongodb_backup_dir }}\mongodb-backup"
-  no_log: true
+  no_log: false

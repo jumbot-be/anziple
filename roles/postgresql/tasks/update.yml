@@ -1,6 +1,7 @@
 ---
 - name: Stop PostgreSQL
   ansible.builtin.include_tasks: stop.yml
+  when: not (postgresql_rds_enabled | default(false))
 
 - name: Backup PostgreSQL
   ansible.builtin.include_tasks: backup.yml
@@ -11,3 +12,4 @@
 
 - name: Start PostgreSQL
   ansible.builtin.include_tasks: start.yml
+  when: not (postgresql_rds_enabled | default(false))

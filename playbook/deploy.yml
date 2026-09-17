@@ -11,7 +11,15 @@
     - zabbix
 
 - name: Deploy Databases
-  hosts: "{{ (groups['database_servers'] | default([]) | length > 0) | ternary('database_servers', (groups['backend_servers'] | default([]) | length > 0) | ternary('backend_servers', 'all')) }}"
+  hosts: >-
+    {{
+      (postgresql_rds_enabled | default(false) or mongodb_host != 'localhost')
+      | ternary('all',
+        (groups['database_servers'] | default([]) | length > 0)
+        | ternary('database_servers',
+                  (groups['backend_servers'] | default([]) | length > 0)
+                  | ternary('backend_servers', 'all')))
+    }}
   vars_files:
     - ../group_vars/all.yml
     - ../group_vars/all_secrets.yml

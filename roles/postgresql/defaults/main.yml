@@ -7,3 +7,10 @@ postgresql_apt_key_url: "https://www.postgresql.org/media/keys/ACCC4CF8.asc"
 
 postgresql_bin_path_windows: 'C:\Program Files\PostgreSQL\{{ postgresql_version }}\bin'
 postgresql_data_path_windows: 'C:\adr\PostgreSQL\data'
+
+# RDS / External PostgreSQL settings
+postgresql_rds_enabled: false
+postgresql_rds_hostname: ""
+postgresql_rds_port: 5432
+postgresql_rds_admin_user: ""
+postgresql_rds_admin_password: ""
