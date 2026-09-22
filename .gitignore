@@ -1,1 +1,6 @@
 ansible.log
+*.log
+.vault_pass
+
+# secrets must never be committed; keep a vault-encrypted copy or a local untracked one
+group_vars/all_secrets.yml

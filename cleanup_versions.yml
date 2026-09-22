@@ -1,2 +1,2 @@
 ---
-- ansible.builtin.import_playbook: playbook/cleanup_versions.yml
+- ansible.builtin.import_playbook: playbook/cleanup.yml
