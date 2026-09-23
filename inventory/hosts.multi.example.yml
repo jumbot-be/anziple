@@ -1,7 +1,7 @@
 # Example inventory for a multi-server deployment (2-server setup)
 #
 # frontend_servers: runs Nginx, Keycloak, and Payara (Frontend WARs)
-# backend_servers: runs Nginx, Payara (Backend WARs), MongoDB, and PostgreSQL
+# backend_servers: runs Payara (Backend WARs), MongoDB, and PostgreSQL
 # database_servers: (optional) if you want to isolate DBs further
 
 all:

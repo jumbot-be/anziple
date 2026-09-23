@@ -93,7 +93,6 @@ To partition components across multiple servers, group your hosts under the foll
   - **Keycloak**
   - **Payara** (Frontend WARs)
 - **`backend_servers`**: Hosts in this group will run background and core application services:
-  - **NGINX** (Backend proxy configuration)
   - **Payara** (Backend WARs)
   - **MongoDB** (if a dedicated database group is not defined)
   - **PostgreSQL** (if a dedicated database group is not defined)
