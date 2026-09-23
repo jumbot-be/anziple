@@ -71,7 +71,7 @@
 
 - name: Create Nginx symbolic link (Linux)
   ansible.builtin.file:
-    src: "{{ nginx_extract_path }}{{ nginx_sep }}nginx"
+    src: "{{ nginx_extract_path }}"
     dest: "{{ nginx_symlink_path_linux }}"
     state: link
     force: true
