@@ -19,9 +19,3 @@
     payara_extract_path: "{{ payara_base_path }}{{ payara_sep }}{{ payara_version_dir }}"
   when: artifacts is defined and artifacts.get('payara') is defined
   tags: [always]
-
-- name: Set Linux specific path facts for Payara
-  ansible.builtin.set_fact:
-    payara_actual_path: "{{ payara_extract_path }}{{ payara_sep }}{{ payara_extract_dir }}"
-  when: ansible_facts['os_family'] != 'Windows'
-  tags: [always]

@@ -9,52 +9,16 @@
 
 - name: Install JDK on Windows
   block:
-    - name: Determine if JDK source is local (Windows)
-      ansible.builtin.set_fact:
-        common_jdk_is_local: "{{ not (item.artifact.url.startswith('http://') or item.artifact.url.startswith('https://')) }}"
-      loop: "{{ required_jdks }}"
-      register: jdk_locality_results
-
     - name: Download Zulu JDK for Windows
-      ansible.windows.win_get_url:
-        url: "{{ item.artifact.url }}"
-        dest: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
-        checksum: "{{ item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum }}"
-        checksum_algorithm: sha256
-        validate_certs: "{{ item.artifact.validate_certs | default(ansible_validate_certs) | default(true) }}"
+      ansible.builtin.include_role:
+        name: integrity
+      vars:
+        integrity_artifact_url: "{{ item.artifact.url }}"
+        integrity_artifact_dest: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
+        integrity_artifact_checksum: "{{ item.artifact.checksum }}"
+        integrity_validate_certs: "{{ item.artifact.validate_certs | default(ansible_validate_certs) | default(true) }}"
+        integrity_force_os: "{{ ansible_facts.get('os_family', 'Windows') }}"
       loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      when: not (jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local)
-
-    - name: Copy Zulu JDK for Windows
-      ansible.windows.win_copy:
-        src: "{{ item.artifact.url }}"
-        dest: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
-      loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      when: jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
-
-    - name: Verify JDK integrity after copy (Windows)
-      ansible.windows.win_stat:
-        path: "{{ ansible_facts['env']['TEMP'] }}\\{{ item.artifact.name }}"
-        checksum_algorithm: sha256
-      loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      register: common_jdk_stats_windows
-      when: jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
-
-    - name: Fail if JDK integrity check fails (Windows)
-      ansible.builtin.fail:
-        msg: "JDK integrity check failed for {{ item.artifact.name }}. Expected {{ item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum }}, got {{ common_jdk_stats_windows.results[idx].stat.checksum }}"
-      loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      when:
-        - jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
-        - common_jdk_stats_windows.results[idx].stat.checksum != (item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum)
 
     - name: Check if legacy jdk symlink exists (Windows)
       ansible.windows.win_stat:

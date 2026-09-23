@@ -19,11 +19,3 @@
     nginx_extract_path: "{{ nginx_base_path }}{{ nginx_sep }}{{ nginx_version_dir }}"
   when: artifacts is defined and artifacts.get('nginx') is defined
   tags: [always]
-
-- name: Set Linux specific path facts for Nginx
-  ansible.builtin.set_fact:
-    nginx_actual_path: "{{ nginx_extract_path }}{{ nginx_sep }}{{ nginx_extract_dir }}"
-  when:
-    - artifacts is defined and artifacts.get('nginx') is defined
-    - ansible_facts['os_family'] != 'Windows'
-  tags: [always]

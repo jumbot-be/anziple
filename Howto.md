@@ -301,17 +301,9 @@ Directory content
     mongodb_host: "{{ (groups['database_servers'] | default([]) | length > 0) | ternary(groups['database_servers'] | first, (groups['backend_servers'] | default([]) | length > 0) | ternary(groups['backend_servers'] | first, 'localhost')) }}"
     #keycloak_host: "{{ (groups['frontend_servers'] | default([]) | length > 0) | ternary(groups['frontend_servers'] | first, 'localhost') }}"
 
-    ### avoid deploying keycloak on backend servers
-    keycloak_host: >-
-    {{
-        (groups['frontend_servers'] | default([]) | length > 0)
-        | ternary(
-        groups['frontend_servers'] | first,
-        'localhost'
-        )
-        if inventory_hostname not in groups['backend_servers']
-        else 'disabled'
-    }}
+    # Keycloak host: frontend server if defined, otherwise localhost.
+    # Backend servers render 'disabled' in the Payara configuration (see roles/payara/templates/config.properties.j2).
+    keycloak_host: "{{ (groups['frontend_servers'] | default([]) | length > 0) | ternary(groups['frontend_servers'] | first, 'localhost') }}"
 
 
     backend_payara_host: "{{ (groups['backend_servers'] | default([]) | length > 0) | ternary(groups['backend_servers'] | first, 'localhost') }}"

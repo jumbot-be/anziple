@@ -1,7 +1,7 @@
 # Example config.properties for Payara
 db.host={{ payara_db_host }}
 mongodb.host={{ mongodb_host }}
-keycloak.host={{ keycloak_host }}
+keycloak.host={{ 'disabled' if 'backend_servers' in group_names else keycloak_host }}
 backend.host={{ backend_payara_host }}
 db.name={{ payara_db_name }}
 db.user={{ payara_db_user | default(postgresql_adr_customer_user) }}

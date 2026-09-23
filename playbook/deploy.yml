@@ -11,15 +11,7 @@
     - zabbix
 
 - name: Deploy Databases
-  hosts: >-
-    {{
-      (postgresql_rds_enabled | default(false) or mongodb_host != 'localhost')
-      | ternary('all',
-        (groups['database_servers'] | default([]) | length > 0)
-        | ternary('database_servers',
-                  (groups['backend_servers'] | default([]) | length > 0)
-                  | ternary('backend_servers', 'all')))
-    }}
+  hosts: "{{ 'all' if (mongodb_host == 'localhost' and not (postgresql_rds_enabled | default(false))) else mongodb_host }}"
   vars_files:
     - ../group_vars/all.yml
     - ../group_vars/all_secrets.yml
@@ -29,7 +21,7 @@
     - postgresql
 
 - name: Deploy Keycloak
-  hosts: "{{ (groups['frontend_servers'] | default([]) | length > 0) | ternary('frontend_servers', 'all') }}"
+  hosts: "{{ 'frontend_servers' if keycloak_host != 'localhost' else 'all' }}"
   vars_files:
     - ../group_vars/all.yml
     - ../group_vars/all_secrets.yml
@@ -38,7 +30,7 @@
     - keycloak
 
 - name: Deploy Application and Proxy
-  hosts: "{{ (groups['frontend_servers'] | default([]) | length > 0 or groups['backend_servers'] | default([]) | length > 0) | ternary('frontend_servers:backend_servers', 'all') }}"
+  hosts: "{{ 'all' if (keycloak_host == 'localhost' and backend_payara_host == 'localhost') else keycloak_host ~ ':' ~ backend_payara_host }}"
   vars_files:
     - ../group_vars/all.yml
     - ../group_vars/all_secrets.yml

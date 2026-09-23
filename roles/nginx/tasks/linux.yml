@@ -22,15 +22,29 @@
     dest: "{{ nginx_extract_path }}"
     remote_src: true
 
+- name: Flatten bundle directory (Linux)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd "{{ nginx_extract_path }}"
+    if [ -d "{{ nginx_extract_dir }}" ]; then
+      cp -a "{{ nginx_extract_dir }}"/. .
+      rm -rf "{{ nginx_extract_dir }}"
+      echo flattened
+    fi
+  args:
+    executable: /bin/bash
+  register: nginx_flatten_result
+  changed_when: "'flattened' in nginx_flatten_result.stdout"
+
 - name: Ensure shell scripts are executable (Linux)
   ansible.builtin.file:
     path: "{{ item }}"
     mode: '0755'
-  loop: "{{ query('ansible.builtin.fileglob', nginx_actual_path + '/*.sh') }}"
+  loop: "{{ query('ansible.builtin.fileglob', nginx_extract_path + '/*.sh') }}"
 
 - name: Create profiles/ansible directory
   ansible.builtin.file:
-    path: "{{ nginx_actual_path }}{{ nginx_sep }}profiles{{ nginx_sep }}ansible"
+    path: "{{ nginx_extract_path }}{{ nginx_sep }}profiles{{ nginx_sep }}ansible"
     state: directory
     mode: '0755'
 
@@ -43,13 +57,13 @@
 - name: Template config.properties
   ansible.builtin.template:
     src: config.properties.j2
-    dest: "{{ nginx_actual_path }}{{ nginx_sep }}profiles{{ nginx_sep }}ansible{{ nginx_sep }}config.properties"
+    dest: "{{ nginx_extract_path }}{{ nginx_sep }}profiles{{ nginx_sep }}ansible{{ nginx_sep }}config.properties"
     mode: '0644'
 
 - name: Run prepare-config.sh (Linux)
   ansible.builtin.command:
     cmd: "./prepare-config.sh ansible"
-    chdir: "{{ nginx_actual_path }}"
+    chdir: "{{ nginx_extract_path }}"
   environment:
     JAVA_HOME: "{{ common_java_home | default('') }}"
     PATH: "{{ common_java_home | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -57,21 +71,21 @@
 
 - name: Create Nginx symbolic link (Linux)
   ansible.builtin.file:
-    src: "{{ nginx_actual_path }}{{ nginx_sep }}nginx"
+    src: "{{ nginx_extract_path }}{{ nginx_sep }}nginx"
     dest: "{{ nginx_symlink_path_linux }}"
     state: link
     force: true
 
 - name: Find mandatory scripts
   ansible.builtin.find:
-    paths: "{{ nginx_actual_path }}"
+    paths: "{{ nginx_extract_path }}"
     patterns: "[1-9]*-nginx-bundle--*.sh"
   register: nginx_mandatory_scripts
 
 - name: Run mandatory scripts (Linux)
   ansible.builtin.command:
     cmd: "./{{ item.path | basename }}"
-    chdir: "{{ nginx_actual_path }}"
+    chdir: "{{ nginx_extract_path }}"
   environment:
     JAVA_HOME: "{{ common_java_home | default('') }}"
     PATH: "{{ common_java_home | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -80,28 +94,28 @@
 
 - name: Find service installation scripts
   ansible.builtin.find:
-    paths: "{{ nginx_actual_path }}"
+    paths: "{{ nginx_extract_path }}"
     patterns: "*-nginx--*.sh"
   register: nginx_service_scripts
 
 # - name: Run service installation (Linux)
 #   ansible.builtin.command:
 #     cmd: "./{{ item.path | basename }}"
-#     chdir: "{{ nginx_actual_path }}"
+#     chdir: "{{ nginx_extract_path }}"
 #   loop: "{{ nginx_service_scripts.files }}"
 #   when: nginx_service_scripts.files | length > 0
 #   changed_when: true
 
 - name: Verify Nginx extraction
   ansible.builtin.stat:
-    path: "{{ nginx_actual_path }}/nginx"
+    path: "{{ nginx_extract_path }}/nginx"
   register: nginx_verify_stat
 
 # - name: Assert Nginx is present
 #   ansible.builtin.assert:
 #     that:
 #       - nginx_verify_stat.stat.exists
-#     msg: "Nginx not found at {{ nginx_actual_path }}/nginx"
+#     msg: "Nginx not found at {{ nginx_extract_path }}/nginx"
 
 - name: Start and enable Nginx service (Linux)
   ansible.builtin.service:
