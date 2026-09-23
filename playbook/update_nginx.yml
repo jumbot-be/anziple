@@ -11,6 +11,7 @@
       ansible.builtin.include_role:
         name: nginx
         tasks_from: update
+      when: "'backend_servers' not in group_names"
 
     - name: Cleanup temporary files
       ansible.builtin.include_role:

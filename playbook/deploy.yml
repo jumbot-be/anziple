@@ -45,7 +45,8 @@
     - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
   roles:
     - payara
-    - nginx
+    - role: nginx
+      when: "'backend_servers' not in group_names"
 
 - name: Cleanup and Summary
   hosts: all

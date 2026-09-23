@@ -15,7 +15,7 @@ Deploymatic deploie APCM sur Linux (Ubuntu) et Windows Server via Ansible.
 
 **Groupes de serveurs**
 - `frontend_servers`: NGINX, Keycloak, Payara (WARs frontend)
-- `backend_servers`: NGINX, Payara (WARs backend), MongoDB, PostgreSQL
+- `backend_servers`: Payara (WARs backend), MongoDB, PostgreSQL
 - `database_servers`: MongoDB, PostgreSQL (optionnel, sinon bascule sur backend_servers)
 
 **Types Payara**

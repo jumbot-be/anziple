@@ -15,6 +15,7 @@
         - nginx
         - payara
         - keycloak
+      when: "(item != 'nginx') or ('backend_servers' not in group_names)"
       tags: [stop-all, update-all]
 
     - name: Update Common Components (JDK)
@@ -59,6 +60,7 @@
       tags: [payara, update-all]
 
     - name: Update Nginx (Update and Start)
+      when: "'backend_servers' not in group_names"
       block:
         - name: Update Nginx
           ansible.builtin.include_role:
