@@ -108,14 +108,14 @@
 
 - name: Verify Nginx extraction
   ansible.builtin.stat:
-    path: "{{ nginx_extract_path }}/nginx"
+    path: "{{ nginx_extract_path }}"
   register: nginx_verify_stat
 
 # - name: Assert Nginx is present
 #   ansible.builtin.assert:
 #     that:
 #       - nginx_verify_stat.stat.exists
-#     msg: "Nginx not found at {{ nginx_extract_path }}/nginx"
+#     msg: "Nginx not found at {{ nginx_extract_path }}"
 
 - name: Start and enable Nginx service (Linux)
   ansible.builtin.service:
