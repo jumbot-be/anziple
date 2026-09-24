@@ -1564,6 +1564,1294 @@ logdir="@nginx.log.directory@"
 
 ---
 
+## 🎯 Solutions Complètes par Script
+
+### 🔹 Remplacement de `1-nginx--setup.sh`
+
+**Fichier Ansible** : `roles/nginx/tasks/setup_nginx.yml`
+
+```yaml
+---
+# roles/nginx/tasks/setup_nginx.yml
+
+# ============================================================
+# Étape 1 : Installation NGINX (selon l'OS)
+# ============================================================
+
+- name: Include OS-specific installation tasks
+  ansible.builtin.include_tasks: "install_{{ ansible_facts['os_family'] | lower }}.yml"
+  tags: [nginx, install]
+
+# ============================================================
+# Étape 2 : Vérification de la version
+# ============================================================
+
+- name: Check NGINX version
+  ansible.builtin.command: nginx -v
+  register: nginx_version_result
+  changed_when: false
+  check_mode: no
+  ignore_errors: yes
+  tags: [nginx, verify]
+
+- name: Assert NGINX version is supported
+  ansible.builtin.assert:
+    that: nginx_version_result.stdout is regex('nginx version: nginx/1\.(28|29|30)\.')
+    msg: >
+      NGINX version {{ nginx_version_result.stdout | default('not found') }} is not supported.
+      Required: >= 1.30.2
+      On Ubuntu: sudo apt install --only-upgrade nginx
+      On Windows: Replace bundle with version 1.30.2+
+  tags: [nginx, verify]
+
+# ============================================================
+# Étape 3 : Création des répertoires
+# ============================================================
+
+- name: Create NGINX directory structure
+  ansible.builtin.file:
+    path: "{{ nginx_home_directory }}/{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - "tcpconf.d"
+    - "{{ nginx_config_name }}-config"
+    - "{{ nginx_config_name }}-shared"
+    - "sites-enabled"
+    - "conf.d"
+  tags: [nginx, config, directories]
+
+# ============================================================
+# Étape 4 : Déploiement de proxysocks.conf
+# ============================================================
+
+- name: Deploy proxysocks.conf
+  ansible.builtin.template:
+    src: config/nginx/tcpconf.d/proxysocks.conf.j2
+    dest: "{{ nginx_home_directory }}/tcpconf.d/proxysocks.conf"
+    mode: '0644'
+    owner: root
+    group: root
+    validate: "nginx -t -c %s"
+  tags: [nginx, config]
+
+# ============================================================
+# Étape 5 : Déploiement des configurations (remplace _copy_config.sh)
+# ============================================================
+
+- name: Deploy all NGINX configuration files
+  ansible.builtin.include_tasks: deploy_config.yml
+  tags: [nginx, config]
+
+# ============================================================
+# Étape 6 : Déploiement des fichiers statiques (remplace _copy_static.sh)
+# ============================================================
+
+- name: Deploy static files
+  ansible.builtin.include_tasks: deploy_static.yml
+  tags: [nginx, static]
+
+# ============================================================
+# Étape 7 : Configuration des certificats (remplace _setup_certificate.sh)
+# ============================================================
+
+- name: Setup SSL certificates
+  ansible.builtin.include_tasks: setup_certificate.yml
+  tags: [nginx, cert]
+
+# ============================================================
+# Étape 8 : Validation et reload
+# ============================================================
+
+- name: Validate NGINX configuration
+  ansible.builtin.command: nginx -t
+  register: nginx_test_result
+  changed_when: false
+  tags: [nginx, validate]
+
+- name: Display validation result
+  ansible.builtin.debug:
+    var: nginx_test_result
+  when: nginx_test_result.rc != 0
+  tags: [nginx, validate]
+
+- name: Reload NGINX (Linux)
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  when:
+    - nginx_test_result.rc == 0
+    - ansible_facts['os_family'] != 'Windows'
+  tags: [nginx, reload]
+
+- name: Restart NGINX service (Windows)
+  ansible.windows.win_service:
+    name: nginx
+    state: restarted
+  when:
+    - nginx_test_result.rc == 0
+    - ansible_facts['os_family'] == 'Windows'
+  tags: [nginx, reload]
+```
+
+---
+
+### 🔹 Remplacement de `2-nginx--deploy-cron.sh`
+
+**Fichier Ansible** : `roles/nginx/tasks/deploy_cron.yml`
+
+```yaml
+---
+# roles/nginx/tasks/deploy_cron.yml
+
+- name: Include OS-specific cron deployment
+  ansible.builtin.include_tasks: "deploy_cron_{{ ansible_facts['os_family'] | lower }}.yml"
+  tags: [nginx, cron]
+```
+
+---
+
+### 🔹 Remplacement de `_copy_config.sh`
+
+**Fichier Ansible** : `roles/nginx/tasks/deploy_config.yml`
+
+```yaml
+---
+# roles/nginx/tasks/deploy_config.yml
+# Remplace complètement _copy_config.sh
+
+- name: Deploy nginx.conf (always overwrite - required for operation)
+  ansible.builtin.template:
+    src: config/nginx/conf/nginx.conf.j2
+    dest: "{{ nginx_home_directory }}/conf/nginx.conf"
+    mode: '0644'
+    owner: root
+    group: root
+    validate: "nginx -t -c %s"
+    backup: yes
+  tags: [nginx, config, nginx_conf]
+
+- name: Deploy proxysocks.conf (always overwrite - required for operation)
+  ansible.builtin.template:
+    src: config/nginx/tcpconf.d/proxysocks.conf.j2
+    dest: "{{ nginx_home_directory }}/tcpconf.d/proxysocks.conf"
+    mode: '0644'
+    owner: root
+    group: root
+    validate: "nginx -t -c %s"
+    backup: yes
+  tags: [nginx, config, proxysocks]
+
+- name: Deploy main site configuration (always overwrite - required for operation)
+  ansible.builtin.template:
+    src: config/nginx/sites-enabled/ampacimon.conf.j2
+    dest: "{{ nginx_home_directory }}/sites-enabled/{{ nginx_config_name }}.conf"
+    mode: '0644'
+    owner: root
+    group: root
+    validate: "nginx -t -c %s"
+    backup: yes
+  tags: [nginx, config, site]
+
+- name: Deploy apcm-shared configurations (always overwrite - required for operation)
+  ansible.builtin.template:
+    src: "config/nginx/apcm-shared/{{ item }}.j2"
+    dest: "{{ nginx_home_directory }}/{{ nginx_config_name }}-shared/{{ item }}"
+    mode: '0644'
+    owner: root
+    group: root
+  loop:
+    - security-headers.shared
+    - uptimerobot.shared
+  tags: [nginx, config, shared]
+
+- name: Deploy apcm-config configurations (always overwrite - required for operation)
+  ansible.builtin.template:
+    src: "config/nginx/apcm-config/{{ item }}.j2"
+    dest: "{{ nginx_home_directory }}/{{ nginx_config_name }}-config/{{ item }}"
+    mode: '0644'
+    owner: root
+    group: root
+  loop:
+    - certificates.config
+    - custom-rules.config
+    - app-access.config
+    - admin-access.config
+    - api-access.config
+  tags: [nginx, config, apcm]
+
+- name: Enable site configuration
+  ansible.builtin.file:
+    src: "{{ nginx_home_directory }}/sites-enabled/{{ nginx_config_name }}.conf"
+    dest: "{{ nginx_home_directory }}/sites-enabled/default.conf"
+    state: link
+    force: yes
+  when: nginx_create_default_link | default(true)
+  tags: [nginx, config]
+```
+
+**Note** : Contrairement au script original qui demande confirmation, on **écrase toujours** car c'est le comportement attendu en mode automatisé. Si besoin de backup, Ansible le gère avec `backup: yes`.
+
+---
+
+### 🔹 Remplacement de `_copy_static.sh`
+
+**Fichier Ansible** : `roles/nginx/tasks/deploy_static.yml`
+
+```yaml
+---
+# roles/nginx/tasks/deploy_static.yml
+# Remplace complètement _copy_static.sh
+
+- name: Create static files directory
+  ansible.builtin.file:
+    path: "{{ static_files_folder }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  tags: [nginx, static]
+
+- name: Deploy static files
+  ansible.builtin.copy:
+    src: "config/static/{{ item }}"
+    dest: "{{ static_files_folder }}/{{ item }}"
+    mode: '0644'
+    owner: root
+    group: root
+  loop:
+    - favicon.ico
+    - index.html
+    - error.html
+    - SofiaPro-Medium.woff
+  tags: [nginx, static]
+
+- name: Set ownership on static files (Linux only)
+  ansible.builtin.file:
+    path: "{{ static_files_folder }}"
+    state: directory
+    recurse: yes
+    owner: www-data
+    group: www-data
+  when: ansible_facts['os_family'] != 'Windows'
+  tags: [nginx, static]
+
+- name: Set ownership on static files (Windows)
+  ansible.windows.win_file:
+    path: "{{ static_files_folder }}"
+    state: directory
+  when: ansible_facts['os_family'] == 'Windows'
+  tags: [nginx, static]
+```
+
+---
+
+### 🔹 Remplacement de `_setup_certificate.sh`
+
+**Fichier Ansible** : `roles/nginx/tasks/setup_certificate.yml`
+
+```yaml
+---
+# roles/nginx/tasks/setup_certificate.yml
+# Remplace complètement _setup_certificate.sh
+
+# ============================================================
+# Étape 1 : Créer le répertoire des certificats
+# ============================================================
+
+- name: Create certificates directory
+  ansible.builtin.file:
+    path: "{{ nginx_home_directory }}/certs"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  tags: [nginx, cert]
+
+# ============================================================
+# Étape 2 : Copier le fichier ffdhe2048.txt
+# ============================================================
+
+- name: Deploy DH parameters
+  ansible.builtin.copy:
+    src: config/nginx/certs/ffdhe2048.txt
+    dest: "{{ nginx_home_directory }}/ffdhe2048.txt"
+    mode: '0644'
+    owner: root
+    group: root
+  tags: [nginx, cert]
+
+# ============================================================
+# Étape 3 : Déployer les certificats (selon le type)
+# ============================================================
+
+- name: Deploy self-signed certificate (IP-based)
+  community.crypto.openssl_certificate:
+    path: "{{ nginx_ssl_cert_path }}"
+    privatekey_path: "{{ nginx_ssl_key_path }}"
+    csr_path: "{{ nginx_home_directory }}/certs/apcm-cert.csr"
+    provider: selfsigned
+    selfsigned_not_after: +{{ nginx_cert_validity_days | default(3650) }}d
+    selfsigned_digest: sha256
+    selfsigned_version: 3
+    selfsigned_key_usage:
+      - digitalSignature
+      - keyEncipherment
+    selfsigned_extended_key_usage:
+      - serverAuth
+    selfsigned_subject:
+      C: "{{ nginx_cert_country | default('BE') }}"
+      ST: "{{ nginx_cert_state | default('Liegge') }}"
+      L: "{{ nginx_cert_locality | default('Loncin') }}"
+      O: "{{ nginx_cert_organization | default('Ampacimon') }}"
+      OU: "{{ nginx_cert_ou | default('IT') }}"
+      CN: "{{ nginx_config_name }}"
+    selfsigned_ip:
+      - "{{ ext_host_fqdn | ipaddr }}"
+  when:
+    - nginx_cert_type == 'selfsigned'
+    - ext_host_fqdn | ipaddr
+  tags: [nginx, cert, selfsigned]
+
+- name: Deploy self-signed certificate (DNS-based)
+  community.crypto.openssl_certificate:
+    path: "{{ nginx_ssl_cert_path }}"
+    privatekey_path: "{{ nginx_ssl_key_path }}"
+    csr_path: "{{ nginx_home_directory }}/certs/apcm-cert.csr"
+    provider: selfsigned
+    selfsigned_not_after: +{{ nginx_cert_validity_days | default(3650) }}d
+    selfsigned_digest: sha256
+    selfsigned_subject:
+      C: "{{ nginx_cert_country | default('BE') }}"
+      ST: "{{ nginx_cert_state | default('Liegge') }}"
+      L: "{{ nginx_cert_locality | default('Loncin') }}"
+      O: "{{ nginx_cert_organization | default('Ampacimon') }}"
+      OU: "{{ nginx_cert_ou | default('IT') }}"
+      CN: "{{ ext_host_fqdn }}"
+    selfsigned_dns:
+      - "{{ ext_host_fqdn }}"
+  when:
+    - nginx_cert_type == 'selfsigned'
+    - not (ext_host_fqdn | ipaddr)
+  tags: [nginx, cert, selfsigned]
+
+- name: Deploy custom certificate
+  ansible.builtin.copy:
+    src: "{{ nginx_ssl_cert_source }}"
+    dest: "{{ nginx_ssl_cert_path }}"
+    mode: '0644'
+    owner: root
+    group: root
+  when:
+    - nginx_cert_type == 'custom'
+    - nginx_ssl_cert_source is defined
+  tags: [nginx, cert, custom]
+
+- name: Deploy custom key
+  ansible.builtin.copy:
+    src: "{{ nginx_ssl_key_source }}"
+    dest: "{{ nginx_ssl_key_path }}"
+    mode: '0600'
+    owner: root
+    group: root
+  when:
+    - nginx_cert_type == 'custom'
+    - nginx_ssl_key_source is defined
+  tags: [nginx, cert, custom]
+
+- name: Warn if custom cert not provided
+  ansible.builtin.debug:
+    msg: >
+      WARNING: Custom certificate mode selected but no source provided.
+      You must manually deploy certificate to {{ nginx_ssl_cert_path }}
+      and key to {{ nginx_ssl_key_path }}
+  when:
+    - nginx_cert_type == 'custom'
+    - (nginx_ssl_cert_source is not defined or nginx_ssl_key_source is not defined)
+  tags: [nginx, cert, custom]
+
+# ============================================================
+# Étape 4 : Configurer les permissions (Linux)
+# ============================================================
+
+- name: Set certificate permissions (Linux)
+  ansible.builtin.file:
+    path: "{{ nginx_home_directory }}/certs"
+    state: directory
+    recurse: yes
+    mode: '0640'
+    owner: root
+    group: root
+  when: ansible_facts['os_family'] != 'Windows'
+  tags: [nginx, cert, permissions]
+```
+
+---
+
+### 🔹 Remplacement de `_create-cronjob.sh` (Linux)
+
+**Fichier Ansible** : `roles/nginx/tasks/deploy_cron_linux.yml`
+
+```yaml
+---
+# roles/nginx/tasks/deploy_cron_linux.yml
+# Remplace complètement _create-cronjob.sh
+
+# ============================================================
+# Étape 1 : Créer l'utilisateur de maintenance
+# ============================================================
+
+- name: Create maintenance user
+  ansible.builtin.user:
+    name: "{{ maintenance_user | default('Scriptuser') }}"
+    state: present
+    system: yes
+    shell: /bin/bash
+    home: "/home/{{ maintenance_user | default('Scriptuser') }}"
+    create_home: yes
+  tags: [nginx, cron, user]
+
+- name: Add maintenance user to root group
+  ansible.builtin.user:
+    name: "{{ maintenance_user | default('Scriptuser') }}"
+    groups: root
+    append: yes
+  tags: [nginx, cron, user]
+
+- name: Add maintenance user to adm group
+  ansible.builtin.user:
+    name: "{{ maintenance_user | default('Scriptuser') }}"
+    groups: adm
+    append: yes
+  tags: [nginx, cron, user]
+
+# ============================================================
+# Étape 2 : Créer les répertoires de maintenance
+# ============================================================
+
+- name: Create maintenance directories
+  ansible.builtin.file:
+    path: "/apcm-maintenance/{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ maintenance_user | default('Scriptuser') }}"
+    group: "{{ maintenance_user | default('Scriptuser') }}"
+  loop:
+    - ""
+    - data
+    - bin
+  tags: [nginx, cron, directories]
+
+# ============================================================
+# Étape 3 : Vérifier les permissions sur les logs
+# ============================================================
+
+- name: Ensure maintenance user can read NGINX logs
+  ansible.builtin.file:
+    path: "{{ nginx_log_directory }}"
+    state: directory
+    recurse: yes
+    mode: '0750'
+    owner: root
+    group: adm
+  tags: [nginx, cron, permissions]
+
+# ============================================================
+# Étape 4 : Déployer les fichiers de configuration
+# ============================================================
+
+- name: Deploy maintenance.ini
+  ansible.builtin.template:
+    src: conf/apcm-maintenance/maintenance.ini.j2
+    dest: /apcm-maintenance/data/maintenance.ini
+    mode: '0600'
+    owner: "{{ maintenance_user | default('Scriptuser') }}"
+    group: "{{ maintenance_user | default('Scriptuser') }}"
+  tags: [nginx, cron, config]
+
+- name: Deploy exportNGINX.ini
+  ansible.builtin.template:
+    src: conf/apcm-maintenance/exportNGINX.ini.j2
+    dest: /apcm-maintenance/data/exportNGINX.ini
+    mode: '0600'
+    owner: "{{ maintenance_user | default('Scriptuser') }}"
+    group: "{{ maintenance_user | default('Scriptuser') }}"
+  tags: [nginx, cron, config]
+
+# ============================================================
+# Étape 5 : Déployer le script d'export des logs
+# ============================================================
+
+- name: Deploy exportNGINXLogs.sh
+  ansible.builtin.copy:
+    src: scripts/bash/cron/exportNGINXLogs.sh
+    dest: /apcm-maintenance/exportNGINXLogs.sh
+    mode: '0700'
+    owner: "{{ maintenance_user | default('Scriptuser') }}"
+    group: "{{ maintenance_user | default('Scriptuser') }}"
+  tags: [nginx, cron, script]
+
+# ============================================================
+# Étape 6 : Créer la tâche cron
+# ============================================================
+
+- name: Create cron job for NGINX log export
+  ansible.builtin.cron:
+    name: "Export NGINX logs"
+    user: "{{ maintenance_user | default('Scriptuser') }}"
+    job: "cd /apcm-maintenance && /apcm-maintenance/exportNGINXLogs.sh"
+    minute: "10"
+    hour: "0"
+    state: present
+  tags: [nginx, cron]
+```
+
+---
+
+### 🔹 Remplacement de `_create-schtask.ps1` (Windows)
+
+**Fichier Ansible** : `roles/nginx/tasks/deploy_cron_windows.yml`
+
+```yaml
+---
+# roles/nginx/tasks/deploy_cron_windows.yml
+# Remplace complètement _create-schtask.ps1
+
+# ============================================================
+# Étape 1 : Créer les répertoires de maintenance
+# ============================================================
+
+- name: Create maintenance directories
+  ansible.windows.win_file:
+    path: "{{ win_maintenance_path }}\{{ item }}"
+    state: directory
+  loop:
+    - ""
+    - data
+    - bin
+    - data\protected
+  tags: [nginx, cron, directories]
+
+# ============================================================
+# Étape 2 : Créer l'utilisateur de maintenance
+# ============================================================
+
+- name: Create maintenance user
+  ansible.windows.win_user:
+    name: "{{ win_maintenance_user | default('Scriptuser') }}"
+    password: "{{ win_maintenance_password | default('P@ssw0rd123!') }}"
+    state: present
+    password_never_expires: yes
+    groups:
+      - Administrators
+  tags: [nginx, cron, user]
+
+# ============================================================
+# Étape 3 : Monter le partage réseau (si nécessaire)
+# ============================================================
+
+- name: Mount network share for datadir
+  community.windows.win_smb_mapping:
+    remote_path: "{{ nginx_datadir }}"
+    local_path: "Z:"
+    username: "{{ nginx_datadir_user | default(omit) }}"
+    password: "{{ nginx_datadir_password | default(omit) }}"
+    state: mapped
+  when:
+    - nginx_datadir.startswith('\\')
+    - nginx_datadir_user != ''
+  tags: [nginx, cron, smb]
+
+# ============================================================
+# Étape 4 : Déployer les fichiers de configuration
+# ============================================================
+
+- name: Deploy maintenance.ini
+  ansible.windows.win_template:
+    src: conf/apcm-maintenance/maintenance.ini.j2
+    dest: "{{ win_maintenance_path }}\data\maintenance.ini"
+  tags: [nginx, cron, config]
+
+- name: Deploy exportNGINX.ini
+  ansible.windows.win_template:
+    src: conf/apcm-maintenance/exportNGINX.ini.j2
+    dest: "{{ win_maintenance_path }}\data\exportNGINX.ini"
+  tags: [nginx, cron, config]
+
+# ============================================================
+# Étape 5 : Déployer les scripts PowerShell
+# ============================================================
+
+- name: Deploy PowerShell scripts
+  ansible.windows.win_copy:
+    src: "scripts/posh/{{ item }}"
+    dest: "{{ win_maintenance_path }}\{{ item }}"
+  loop:
+    - exportNGINXLogs.ps1
+    - rotateNGINXLogs.ps1
+    - onDemandTask.ps1
+  tags: [nginx, cron, script]
+
+# ============================================================
+# Étape 6 : Créer les tâches planifiées
+# ============================================================
+
+- name: Create scheduled task for log rotation
+  ansible.windows.win_scheduled_task:
+    name: apcm-maintenance-rotatenginxLogs
+    description: "Rotate NGINX logs daily at midnight"
+    actions:
+      - path: powershell.exe
+        arguments: "-noprofile -executionpolicy bypass -file \"{{ win_maintenance_path }}\rotateNGINXLogs.ps1\""
+    triggers:
+      - type: daily
+        start_time: "00:00"
+        enabled: yes
+    user: SYSTEM
+    state: present
+  tags: [nginx, cron, rotation]
+
+- name: Create on-demand scheduled task
+  ansible.windows.win_scheduled_task:
+    name: apcm-maintenance
+    description: "On-demand maintenance task triggered by EventLog"
+    actions:
+      - path: powershell.exe
+        arguments: "-noprofile -executionpolicy bypass -file \"{{ win_maintenance_path }}\onDemandTask.ps1\""
+    triggers:
+      - type: event
+        log: Application
+        source: ADR
+        event_id: 100
+        enabled: yes
+    user: "{{ win_maintenance_user | default('Scriptuser') }}"
+    password: "{{ win_maintenance_password | default('P@ssw0rd123!') }}"
+    state: present
+  tags: [nginx, cron, ondemand]
+
+- name: Ensure EventLog source exists
+  ansible.windows.win_eventlog:
+    name: Application
+    source: ADR
+    state: present
+  tags: [nginx, cron, eventlog]
+
+# ============================================================
+# Étape 7 : Configurer les permissions
+# ============================================================
+
+- name: Set permissions on maintenance directory
+  ansible.windows.win_acl:
+    path: "{{ win_maintenance_path }}"
+    user: "{{ win_maintenance_user | default('Scriptuser') }}"
+    permissions: FullControl
+    type: directory
+    state: present
+    inherit: ContainerInherit, ObjectInherit
+    propagation: InheritOnly
+  tags: [nginx, cron, permissions]
+```
+
+---
+
+## 📊 Mapping des Variables
+
+### Variables pour les Scripts de Configuration
+
+```yaml
+# group_vars/all.yml
+
+# ============================================================
+# Utilisateur de Maintenance
+# ============================================================
+maintenance_user: "Scriptuser"  # Linux
+win_maintenance_user: "Scriptuser"  # Windows
+win_maintenance_password: "{{ vault_win_maintenance_password }}"  # À mettre dans vault
+win_maintenance_path: "C:\\apcm-maintenance"
+
+# ============================================================
+# Chemins NGINX
+# ============================================================
+nginx_home_directory: "/etc/nginx"
+nginx_config_name: "ampacimon"
+nginx_log_directory: "/var/log/nginx"
+static_files_folder: "/var/www/{{ nginx_config_name }}"
+
+# ============================================================
+# Répertoire des Données
+# ============================================================
+nginx_datadir: "/opt/adr/data"
+nginx_datadir_user: ""  # Optionnel
+nginx_datadir_password: ""  # Optionnel
+
+# ============================================================
+# Certificats SSL
+# ============================================================
+nginx_cert_type: "selfsigned"  # selfsigned, custom, existing
+nginx_ssl_cert_source: ""  # Chemin vers certificat custom
+nginx_ssl_key_source: ""  # Chemin vers clé custom
+nginx_ssl_cert_path: "{{ nginx_home_directory }}/certs/apcm-cert.crt"
+nginx_ssl_key_path: "{{ nginx_home_directory }}/certs/apcm-cert.key"
+nginx_cert_validity_days: 3650  # 10 ans
+nginx_cert_country: "BE"
+nginx_cert_state: "Liegge"
+nginx_cert_locality: "Loncin"
+nginx_cert_organization: "Ampacimon"
+nginx_cert_ou: "IT"
+```
+
+---
+
+## 📝 Checklist de Migration
+
+### ✅ À Faire pour NGINX
+
+- [ ] **Préparation**
+  - [ ] Créer la structure `roles/nginx/templates/config/nginx/`
+  - [ ] Copier tous les fichiers de `resources/config/nginx/` vers `templates/`
+  - [ ] Convertir chaque fichier en template Jinja2 (remplacer `@token@` par `{{ variable }}`)
+  - [ ] Créer les fichiers `*.j2` pour maintenance.ini et exportNGINX.ini
+
+- [ ] **Templates**
+  - [ ] `config/nginx/conf/nginx.conf.j2`
+  - [ ] `config/nginx/sites-enabled/ampacimon.conf.j2`
+  - [ ] `config/nginx/tcpconf.d/proxysocks.conf.j2`
+  - [ ] `config/nginx/apcm-config/certificates.config.j2`
+  - [ ] `config/nginx/apcm-config/custom-rules.config.j2`
+  - [ ] `config/nginx/apcm-config/app-access.config.j2`
+  - [ ] `config/nginx/apcm-config/admin-access.config.j2`
+  - [ ] `config/nginx/apcm-config/api-access.config.j2`
+  - [ ] `config/nginx/apcm-shared/security-headers.shared.j2`
+  - [ ] `config/nginx/apcm-shared/uptimerobot.shared.j2`
+  - [ ] `conf/apcm-maintenance/maintenance.ini.j2`
+  - [ ] `conf/apcm-maintenance/exportNGINX.ini.j2`
+
+- [ ] **Tâches Ansible**
+  - [ ] `tasks/setup_linux.yml` (remplace installation Linux)
+  - [ ] `tasks/setup_windows.yml` (remplace installation Windows)
+  - [ ] `tasks/deploy_config.yml` (remplace `_copy_config.sh`)
+  - [ ] `tasks/deploy_static.yml` (remplace `_copy_static.sh`)
+  - [ ] `tasks/setup_certificate.yml` (remplace `_setup_certificate.sh`)
+  - [ ] `tasks/deploy_cron_linux.yml` (remplace `_create-cronjob.sh`)
+  - [ ] `tasks/deploy_cron_windows.yml` (remplace `_create-schtask.ps1`)
+  - [ ] `tasks/main.yml` (intègre tout)
+
+- [ ] **Variables**
+  - [ ] Définir toutes les variables dans `group_vars/all.yml`
+  - [ ] Créer `group_vars/all_secrets.yml` pour les secrets (encrypted)
+  - [ ] Définir les defaults dans `roles/nginx/defaults/main.yml`
+
+- [ ] **Tests**
+  - [ ] Tester l'installation sur une machine propre
+  - [ ] Tester le déploiement des configurations
+  - [ ] Tester le déploiement des certificats
+  - [ ] Tester le déploiement des tâches cron
+  - [ ] Valider avec `nginx -t`
+
+- [ ] **Nettoyage**
+  - [ ] Supprimer `TMP-CONFIG/` du repo
+  - [ ] Supprimer les références aux scripts dans le README
+  - [ ] Mettre à jour la documentation
+  - [ ] Commit et merge
+
+---
+
+## 💡 Conseils et Bonnes Pratiques
+
+### 1. **Conversion des Fichiers en Templates**
+
+**Processus recommandé** :
+```bash
+# Pour chaque fichier dans resources/config/nginx/
+find resources/config/nginx/ -type f -name "*.conf" -o -name "*.config" -o -name "*.shared" | while read file; do
+    # Créer le répertoire cible
+    target_dir=$(echo "$file" | sed 's|resources/config/|templates/config/|' | sed 's|\..*$||')
+    mkdir -p "roles/nginx/templates/$target_dir"
+    
+    # Copier le fichier
+    cp "$file" "roles/nginx/templates/$target_dir/$(basename $file).j2"
+    
+    # Remplacer les tokens @...@ par {{ ... }}
+    sed -i 's/@\([a-zA-Z0-9._-]*\)/{{\1}}/g' "roles/nginx/templates/$target_dir/$(basename $file).j2"
+done
+```
+
+**Exemple de conversion** :
+```bash
+# Avant
+upstream @nginx.config.name@_keycloak {
+  server @keycloak.host.fqdn@:@keycloak.https.port@;
+}
+
+# Après
+upstream {{ nginx_config_name }}_keycloak {
+  server {{ keycloak_host_fqdn }}:{{ keycloak_https_port }};
+}
+```
+
+### 2. **Gestion des Variables**
+
+**Hiérarchie recommandée** :
+```
+1. group_vars/all.yml          # Variables communes à tous les environnements
+2. group_vars/<env>/main.yml  # Overrides par environnement (dev, staging, prod)
+3. roles/nginx/defaults/      # Valeurs par défaut
+4. Extra vars (-e)            # Overrides temporaires
+```
+
+**Exemple** :
+```yaml
+# roles/nginx/defaults/main.yml
+nginx_config_name: "ampacimon"
+nginx_home_directory: "/etc/nginx"
+keycloak_host_fqdn: "localhost"
+
+# group_vars/dev/main.yml
+nginx_config_name: "ampacimon-dev"
+keycloak_host_fqdn: "auth.dev.example.com"
+
+# group_vars/prod/main.yml
+nginx_config_name: "ampacimon"
+keycloak_host_fqdn: "auth.example.com"
+```
+
+### 3. **Gestion des Secrets**
+
+**Utiliser Ansible Vault** :
+```bash
+# Encrypter un fichier
+ansible-vault encrypt group_vars/all_secrets.yml
+
+# Éditer un fichier encrypté
+ansible-vault edit group_vars/all_secrets.yml
+
+# Exécuter un playbook avec vault
+ansible-playbook deploy.yml --ask-vault-pass
+```
+
+**Exemple de fichier secrets** :
+```yaml
+# group_vars/all_secrets.yml (encrypted)
+win_maintenance_password: "MyS3cr3tP@ssw0rd"
+nginx_ssl_cert_source: "/path/to/custom.crt"
+nginx_ssl_key_source: "/path/to/custom.key"
+nginx_datadir_user: "domain\\user"
+nginx_datadir_password: "Sh@r3P@ss"
+```
+
+### 4. **Validation des Configurations**
+
+**Utiliser le paramètre `validate`** :
+```yaml
+- name: Deploy nginx.conf
+  ansible.builtin.template:
+    src: config/nginx/conf/nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    validate: "nginx -t -c %s"
+```
+
+**Créer une tâche de validation dédiée** :
+```yaml
+- name: Validate all NGINX configurations
+  ansible.builtin.command: nginx -t
+  register: nginx_validation
+  changed_when: false
+  check_mode: no
+
+- name: Fail if NGINX validation fails
+  ansible.builtin.fail:
+    msg: "NGINX configuration is invalid: {{ nginx_validation.stderr }}"
+  when: nginx_validation.rc != 0
+```
+
+### 5. **Gestion des Différences entre Environnements**
+
+**Utiliser des conditions** :
+```yaml
+- name: Deploy production-specific configuration
+  ansible.builtin.template:
+    src: config/nginx/prod-specific.conf.j2
+    dest: /etc/nginx/conf.d/prod.conf
+  when: environment == 'prod'
+```
+
+**Utiliser des fichiers de variables séparés** :
+```
+group_vars/
+├── all.yml              # Commun
+├── dev.yml              # Dev-specific
+├── staging.yml          # Staging-specific
+└── prod.yml             # Prod-specific
+```
+
+---
+
+## 🚀 Commandes Utiles
+
+### Pour convertir les fichiers
+
+```bash
+# Trouver tous les tokens dans les fichiers
+find TMP-CONFIG/sources/nginx -type f -name "*.conf" -o -name "*.config" | \
+  xargs grep -oh '@[a-zA-Z0-9._-]*@' | sort -u
+
+# Compter le nombre de fichiers à convertir
+find TMP-CONFIG/sources/nginx/apcm-nginx-bundle/resources/config -type f | \
+  grep -v "Zone.Identifier" | wc -l
+
+# Vérifier les permissions après déploiement
+ansible all -m command -a "nginx -t" -i inventory/hosts.yml
+```
+
+### Pour tester la migration
+
+```bash
+# Test en local avec les templates
+ansible-playbook deploy.yml --limit localhost --tags nginx
+
+# Test de la validation NGINX
+ansible-playbook deploy.yml --limit localhost --tags "nginx,validate"
+
+# Test complet
+ansible-playbook deploy.yml --ask-vault-pass
+```
+
+---
+
+## 🔐 Intégration Ansible Vault - Gestion des Secrets
+
+**IMPÉRATIF** : Tous les mots de passe, clés API, certificats et secrets doivent être stockés dans **Ansible Vault** et jamais en clair dans les fichiers de configuration ou les playbooks.
+
+---
+
+### 1. Architecture des Fichiers Vault
+
+```
+ansible/
+├── group_vars/
+│   ├── all.yml                    # Variables NON sensibles (public)
+│   ├── all_secrets.yml            # Variables sensibles (CHIFFRÉ)
+│   ├── dev_secrets.yml            # Secrets spécifiques dev (CHIFFRÉ)
+│   ├── staging_secrets.yml        # Secrets spécifiques staging (CHIFFRÉ)
+│   └── prod_secrets.yml           # Secrets spécifiques prod (CHIFFRÉ)
+└── host_vars/
+    └── <hostname>_secrets.yml     # Secrets spécifiques hôte (CHIFFRÉ)
+```
+
+**Bonnes pratiques** :
+- Un fichier Vault par environnement (dev/staging/prod)
+- Utiliser `group_vars/all_secrets.yml` pour les secrets communs à tous les environnements
+- Utiliser `host_vars/<host>_secrets.yml` pour les secrets spécifiques à un hôte
+- Ne JAMAIS commiter de fichiers non chiffrés contenant des secrets
+
+---
+
+### 2. Structure des Secrets pour NGINX
+
+#### **Fichier `group_vars/all_secrets.yml` (à chiffrer)**
+
+```yaml
+# ============================================================
+# NGINX - SSL Certificates
+# ============================================================
+nginx_ssl_cert_content: |
+  {{ vault_nginx_ssl_cert | indent(2) }}
+nginx_ssl_key_content: |
+  {{ vault_nginx_ssl_key | indent(2) }}
+
+# Chemin vers certificats existants (si nginx_cert_type: custom/existing)
+nginx_ssl_cert_source: "/path/to/production/cert.pem"
+nginx_ssl_key_source: "/path/to/production/key.pem"
+
+# ============================================================
+# NGINX - Basic Auth Credentials
+# ============================================================
+# Si utilisation de l'authentification basic
+nginx_basic_auth_users:
+  - username: "admin"
+    password: "{{ vault_nginx_basic_auth_admin_password }}"
+  - username: "monitor"
+    password: "{{ vault_nginx_basic_auth_monitor_password }}"
+
+# ============================================================
+# NGINX - Data Directory Credentials
+# ============================================================
+nginx_datadir_user: "{{ vault_nginx_datadir_username }}"
+nginx_datadir_password: "{{ vault_nginx_datadir_password }}"
+
+# ============================================================
+# NGINX - Maintenance Credentials
+# ============================================================
+win_maintenance_password: "{{ vault_win_maintenance_password }}"
+```
+
+#### **Fichier `group_vars/prod_secrets.yml` (exemple production)**
+
+```yaml
+# ============================================================
+# NGINX - Production SSL Certificates
+# ============================================================
+vault_nginx_ssl_cert: |
+  -----BEGIN CERTIFICATE-----
+  MII... (certificat production)
+  -----END CERTIFICATE-----
+
+vault_nginx_ssl_key: |
+  -----BEGIN PRIVATE KEY-----
+  MII... (clé privée production)
+  -----END PRIVATE KEY-----
+
+# ============================================================
+# NGINX - Production Credentials
+# ============================================================
+vault_nginx_basic_auth_admin_password: "{{ random_password_32_chars }}"
+vault_nginx_basic_auth_monitor_password: "{{ random_password_32_chars }}"
+vault_nginx_datadir_username: "prod\\svc-nginx"
+vault_nginx_datadir_password: "{{ random_password_32_chars }}"
+vault_win_maintenance_password: "{{ random_password_32_chars }}"
+```
+
+---
+
+### 3. Commandes de Chiffrement/Déchiffrement
+
+#### **Créer un nouveau fichier Vault**
+```bash
+# Créer et éditer un fichier chiffré
+ansible-vault create group_vars/prod_secrets.yml
+
+# ou utiliser un éditeur spécifique
+ansible-vault edit group_vars/prod_secrets.yml
+
+# Créer un fichier chiffré à partir d'un fichier existant
+ansible-vault encrypt group_vars/all_secrets.yml
+```
+
+#### **Modifier un fichier Vault existant**
+```bash
+ansible-vault edit group_vars/prod_secrets.yml
+```
+
+#### **Déchiffrer un fichier pour vérification**
+```bash
+# Déchiffrer temporairement pour visualisation
+ansible-vault view group_vars/prod_secrets.yml
+
+# Déchiffrer un fichier
+ansible-vault decrypt group_vars/prod_secrets.yml
+```
+
+#### **Changer le mot de passe du Vault**
+```bash
+ansible-vault rekey group_vars/prod_secrets.yml
+```
+
+---
+
+### 4. Intégration avec les Playbooks
+
+#### **Exécution avec Vault**
+
+```bash
+# Exécuter avec demande interactive du mot de passe
+ansible-playbook deploy.yml --ask-vault-pass
+
+# Utiliser un fichier de mot de passe
+ansible-playbook deploy.yml --vault-password-file ~/.vault_pass.txt
+
+# Utiliser une variable d'environnement
+export ANSIBLE_VAULT_PASSWORD_FILE=~/.vault_pass.txt
+ansible-playbook deploy.yml
+```
+
+#### **Exemple de playbook avec Vault**
+
+```yaml
+---
+- name: Deploy NGINX Configuration
+  hosts: nginx_servers
+  vars_files:
+    - group_vars/all.yml
+    - group_vars/all_secrets.yml  # Chiffré avec Vault
+  
+  tasks:
+    - name: Include secrets for current environment
+      ansible.builtin.include_vars:
+        file: "group_vars/{{ environment }}_secrets.yml"
+      no_log: true
+      when: environment is defined
+      
+    - name: Deploy nginx.conf with SSL
+      ansible.builtin.template:
+        src: config/nginx/conf/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: '0644'
+        validate: "nginx -t -c %s"
+      no_log: true  # Ne pas logger le contenu sensible
+```
+
+---
+
+### 5. Bonnes Pratiques de Sécurité
+
+#### **Dans les playbooks**
+
+```yaml
+# TOUJOURS utiliser no_log: true pour les tâches manipulant des secrets
+- name: Create SSL certificate
+  community.crypto.openssl_certificate:
+    path: "{{ nginx_ssl_cert_path }}"
+    privatekey_path: "{{ nginx_ssl_key_path }}"
+    csr_path: /tmp/nginx.csr
+    provider: selfsigned
+  no_log: true
+
+# Éviter d'afficher les secrets dans les messages
+- name: Set fact with sensitive data
+  ansible.builtin.set_fact:
+    db_password: "{{ vault_db_password }}"
+  no_log: true
+
+# Utiliser register avec no_log pour les commandes sensibles
+- name: Check certificate
+  ansible.builtin.command: openssl x509 -in "{{ nginx_ssl_cert_path }}" -text -noout
+  register: cert_info
+  no_log: true
+  changed_when: false
+```
+
+#### **Permissions des fichiers**
+
+```yaml
+# TOUJOURS définir des permissions strictes sur les fichiers sensibles
+- name: Deploy SSL key
+  ansible.builtin.copy:
+    content: "{{ nginx_ssl_key_content }}"
+    dest: "{{ nginx_ssl_key_path }}"
+    mode: '0600'  # Lecteur/écriture uniquement pour le propriétaire
+    owner: root
+    group: root
+  no_log: true
+
+- name: Deploy configuration with sensitive data
+  ansible.builtin.template:
+    src: config/nginx/sites-enabled/ampacimon.conf.j2
+    dest: /etc/nginx/sites-enabled/ampacimon.conf
+    mode: '0640'  # Propriétaire lecture/écriture, groupe lecture
+    owner: root
+    group: root
+  no_log: true
+```
+
+#### **Gestion des variables sensibles**
+
+```yaml
+# TOUJOURS utiliser des variables séparées pour les secrets
+# MAUVAIS:
+nginx_config: |
+  server {
+    ssl_certificate_key /path/to/key.pem;  # Le contenu serait visible
+  }
+
+# BON:
+nginx_ssl_key_path: "/etc/nginx/certs/key.pem"
+
+# Dans le template:
+# ssl_certificate_key {{ nginx_ssl_key_path }};
+
+# Le fichier lui-même est déployé séparément avec mode: 0600
+```
+
+---
+
+### 6. Génération de Mots de Passe Aléatoires
+
+#### **Utiliser le module `community.general.random_string`**
+
+```yaml
+- name: Generate random passwords
+  community.general.random_string:
+    length: 32
+    special: true
+    upper: true
+    lower: true
+    digits: true
+  register: generated_passwords
+  no_log: true
+
+- name: Store generated passwords in Vault
+  ansible.builtin.lineinfile:
+    path: group_vars/{{ environment }}_secrets.yml
+    line: "vault_nginx_password: {{ generated_passwords.string | to_json }}"
+    insertafter: "^# Generated passwords"
+  no_log: true
+  delegate_to: localhost
+  run_once: true
+```
+
+#### **Commande CLI pour générer des mots de passe**
+
+```bash
+# Générer un mot de passe aléatoire de 32 caractères
+openssl rand -base64 24
+
+# Générer avec caractères spéciaux
+openssl rand -base64 24 | tr '+/' '-_' | head -c32
+
+# Avec ansible
+ansible localhost -e "msg={{ lookup('community.general.random_string', length=32, special=true) }}" -m debug
+```
+
+---
+
+### 7. Audit de Sécurité
+
+#### **Checklist avant commit**
+
+- [ ] Tous les mots de passe sont dans des fichiers `.yml` chiffrés avec Vault
+- [ ] Aucun secret en clair dans les playbooks ou templates
+- [ ] Les templates utilisent des variables et non des valeurs hardcodées
+- [ ] Les tâches manipulant des secrets ont `no_log: true`
+- [ ] Les fichiers sensibles ont des permissions restreintes (mode: '0600' ou '0640')
+- [ ] Les fichiers Vault sont dans `.gitignore`
+- [ ] Les secrets sont spécifiques à chaque environnement (dev/staging/prod)
+- [ ] Rotation des mots de passe documentée
+
+#### **Vérification des secrets non chiffrés**
+
+```bash
+# Rechercher des mots de passe potentiels dans les fichiers
+# (à exécuter avant de commiter)
+grep -rE "password|passwd|secret|api_key|token|private" \
+  --include="*.yml" --include="*.yaml" --include="*.j2" \
+  --exclude-dir=group_vars --exclude-dir=host_vars \
+  ansible/ roles/ playbook/
+
+# Rechercher des IP ou URLs hardcodées
+grep -rE "http://|https://|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}" \
+  --include="*.yml" --include="*.j2" \
+  ansible/ roles/
+```
+
+#### **Configuration Git pour éviter les commits accidentels**
+
+```bash
+# Ajouter un pre-commit hook
+cat > .git/hooks/pre-commit << 'EOF'
+#!/bin/bash
+if git diff --cached --name-only | grep -E '\.(secrets\.yml|vault\.yml)$'; then
+  echo "ERROR: Attempting to commit encrypted files!"
+  echo "Use: git add <specific-files> and avoid committing Vault files"
+  exit 1
+fi
+EOF
+chmod +x .git/hooks/pre-commit
+```
+
+---
+
 ## 📚 Références
 
 - [Ansible Template Module](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/template_module.html)
