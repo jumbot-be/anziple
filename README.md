@@ -32,10 +32,18 @@ Main configuration variables are located in `group_vars/all.yml`:
 
 #### MongoDB kernel hold
 
-`mongod` is incompatible with Linux kernel 6.19+ (TCMalloc/rseq crash). On Debian/Ubuntu database hosts, the `mongodb` role places all installed v6.x kernel packages (and their meta-packages) on `apt-mark hold` so that neither `apt upgrade` nor `unattended-upgrades` can pull an incompatible kernel. This is controlled by:
+`mongod` is incompatible with Linux kernels 6.19 through 7.0.13 (TCMalloc/rseq crash). On Debian/Ubuntu database hosts, the `mongodb` role:
+
+1. Removes any already-installed incompatible kernel image/modules packages (e.g. a 7.0.x kernel pulled in before the hold was in place), so a reboot cannot boot into a kernel where `mongod` refuses to start.
+2. Places all installed versioned kernel packages and kernel meta-packages on `apt-mark hold`, so that neither `apt upgrade` nor `unattended-upgrades` can pull a newer kernel.
+
+This is controlled by:
 
 - `mongodb_kernel_hold_enabled`: Enable the kernel hold (default: `true`, see `roles/mongodb/defaults/main.yml`).
-- `mongodb_kernel_v6_package_pattern` / `mongodb_kernel_meta_package_pattern`: Package name patterns that select the kernel packages to hold.
+- `mongodb_kernel_incompatible_pattern`: Pattern matching versioned kernel packages in the incompatible range (6.19–7.0.13); matching packages are removed.
+- `mongodb_kernel_versioned_package_pattern` / `mongodb_kernel_meta_package_pattern`: Patterns selecting the kernel packages to hold.
+
+The machine stays on its current (compatible) kernel until packages are unheld manually (`apt-mark unhold`) or `mongodb_kernel_hold_enabled` is set to `false`.
 
 ### Local vs Remote Sources
 The roles automatically detect if an artifact source is a remote URL or a local file on the Ansible control node:
