@@ -28,6 +28,7 @@ Main configuration variables are located in `group_vars/all.yml`:
 - `adr_base_path_windows`: Base installation directory for Windows (default: `C:\adr`).
 - `artifacts`: A dictionary containing download URLs (or local paths) and SHA256 hashes for each component.
 - `unattended_upgrades_enabled`: Install and enable `unattended-upgrades` for automatic security updates on Debian/Ubuntu hosts (default: `true`).
+- `unattended_upgrades_interval_days`: Interval in days between unattended-upgrades runs (default: `7`, i.e. weekly).
 
 #### MongoDB kernel hold
 

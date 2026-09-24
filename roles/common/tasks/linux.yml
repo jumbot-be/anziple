@@ -39,10 +39,10 @@
     - name: Enable automatic updates via apt timers (Linux)
       ansible.builtin.copy:
         content: |
-          APT::Periodic::Update-Package-Lists "1";
-          APT::Periodic::Unattended-Upgrade "1";
-          APT::Periodic::Download-Upgradeable-Packages "1";
-          APT::Periodic::AutocleanInterval "7";
+          APT::Periodic::Update-Package-Lists "{{ unattended_upgrades_interval_days }}";
+          APT::Periodic::Unattended-Upgrade "{{ unattended_upgrades_interval_days }}";
+          APT::Periodic::Download-Upgradeable-Packages "{{ unattended_upgrades_interval_days }}";
+          APT::Periodic::AutocleanInterval "{{ unattended_upgrades_interval_days }}";
         dest: /etc/apt/apt.conf.d/20auto-upgrades
         owner: root
         group: root

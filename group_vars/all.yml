@@ -28,6 +28,7 @@ postfix_enabled: false
 
 # Automatic security updates (unattended-upgrades) on Debian/Ubuntu
 unattended_upgrades_enabled: true
+unattended_upgrades_interval_days: 7
 
 # Default Release (can be overridden with -e @vars/releases/X.Y.Z.yml)
 # Currently points to 4.0.9 as the latest default.
