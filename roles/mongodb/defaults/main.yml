@@ -1,5 +1,14 @@
 # MongoDB Configuration Defaults
 mongodb_admin_user: "ampacimonAdmin"
+
+# Application users: one user per database, created after auth is enabled.
+# Passwords must be defined in group_vars/all_secrets.yml as
+# mongodb_<name>_password (e.g. mongodb_pho_password).
+mongodb_app_users:
+  - name: PHO
+  - name: ADG
+  - name: CMS
+  - name: HMI
 mongodb_admin_password: "a very complex password please" # Override in Vault
 mongodb_cert_subj: "/C=BE/ST=LIEGE/L=LIEGE/O=Ampacimon/OU=IT/emailAddress=sysadmin@ampacimon.com/CN={{ ansible_facts['fqdn'] }}"
 

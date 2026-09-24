@@ -218,6 +218,44 @@
 - name: Flush handlers to apply security configuration
   ansible.builtin.meta: flush_handlers
 
+- name: Create application users (authenticated, TLS)
+  block:
+    - name: Check if application user exists (Linux)
+      ansible.builtin.shell: |
+        mongosh --port 27017 --tls \
+          --tlsCertificateKeyFile {{ mongodb_pem_path_linux }} \
+          -u "{{ mongodb_admin_user }}" -p '{{ mongodb_admin_password }}' \
+          --authenticationDatabase admin --quiet \
+          --eval 'db.getSiblingDB("{{ item.name }}").getUser("{{ item.name }}")'
+      args:
+        executable: /bin/bash
+      register: mongodb_app_user_check
+      changed_when: false
+      failed_when: false
+      loop: "{{ mongodb_app_users }}"
+
+    - name: Create application user (Linux)
+      ansible.builtin.shell: |
+        mongosh --port 27017 --tls \
+          --tlsCertificateKeyFile {{ mongodb_pem_path_linux }} \
+          -u "{{ mongodb_admin_user }}" -p '{{ mongodb_admin_password }}' \
+          --authenticationDatabase admin --quiet \
+          --eval 'db.getSiblingDB("{{ item.name }}").createUser(
+            {
+              user: "{{ item.name }}",
+              pwd: "{{ lookup("ansible.builtin.vars", "mongodb_" ~ item.name | lower ~ "_password") }}",
+              roles: [{role: "readWrite", db: "{{ item.name }}"}]
+            })'
+      args:
+        executable: /bin/bash
+      register: mongodb_app_user_creation
+      changed_when:
+        - "'Successfully added user' in mongodb_app_user_creation.stdout"
+      when: (mongodb_app_user_check.results[index_var].stdout | default('null') | trim) == 'null'
+      loop: "{{ mongodb_app_users }}"
+      loop_control:
+        index_var: index_var
+
 - name: Verify connection without credentials must fail
   ansible.builtin.shell: |
     mongosh --port 27017 --eval 'db.runCommand({connectionStatus : 1})'

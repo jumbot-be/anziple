@@ -30,6 +30,10 @@ Main configuration variables are located in `group_vars/all.yml`:
 - `unattended_upgrades_enabled`: Install and enable `unattended-upgrades` for automatic security updates on Debian/Ubuntu hosts (default: `true`).
 - `unattended_upgrades_interval_days`: Interval in days between unattended-upgrades runs (default: `7`, i.e. weekly).
 
+#### MongoDB application users
+
+The `mongodb` role creates one application user per database (default: `PHO`, `ADG`, `CMS`, `HMI`) with the `readWrite` role on its own database, after authorization and TLS are enabled. The list is configurable via `mongodb_app_users` (see `roles/mongodb/defaults/main.yml`); each entry expects a matching `mongodb_<name>_password` secret in `group_vars/all_secrets.yml` (e.g. `mongodb_pho_password`).
+
 #### MongoDB kernel hold
 
 `mongod` is incompatible with Linux kernels 6.19 through 7.0.13 (TCMalloc/rseq crash). On Debian/Ubuntu database hosts, the `mongodb` role:
