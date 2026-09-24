@@ -1,0 +1,94 @@
+---
+# Replaces _create-cronjob.sh (Linux): log export cron to the datadir.
+# Creates the maintenance user, deploys the export script and the ini
+# files, ensures log readability, and registers the cron entry.
+
+- name: Create maintenance user
+  ansible.builtin.user:
+    name: "{{ nginx_maintenance_user }}"
+    state: present
+    create_home: true
+    shell: /bin/bash
+  tags: [nginx, config, cron]
+
+- name: Add maintenance user to root group (read payara logs)
+  ansible.builtin.user:
+    name: "{{ nginx_maintenance_user }}"
+    groups: root
+    append: true
+  tags: [nginx, config, cron]
+
+- name: Add maintenance user to adm group (read /var/log)
+  ansible.builtin.user:
+    name: "{{ nginx_maintenance_user }}"
+    groups: adm
+    append: true
+  tags: [nginx, config, cron]
+
+- name: Create maintenance directories
+  ansible.builtin.file:
+    path: "{{ nginx_maintenance_path }}/{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ nginx_maintenance_user }}"
+    group: "{{ nginx_maintenance_user }}"
+  loop:
+    - ""
+    - data
+    - bin
+  tags: [nginx, config, cron]
+
+- name: Create nginx logs output folder on datadir
+  ansible.builtin.file:
+    path: "{{ nginx_datadir }}/nginxLogs"
+    state: directory
+    mode: '0775'
+  when: nginx_datadir != 'ChangeMe' and nginx_datadir | length > 0
+  tags: [nginx, config, cron]
+
+- name: Deploy maintenance.ini
+  ansible.builtin.template:
+    src: conf/apcm-maintenance/maintenance.ini.j2
+    dest: "{{ nginx_maintenance_path }}/data/maintenance.ini"
+    mode: '0600'
+    owner: "{{ nginx_maintenance_user }}"
+    group: "{{ nginx_maintenance_user }}"
+  no_log: true
+  tags: [nginx, config, cron]
+
+- name: Deploy exportNGINX.ini (logdir included in the template)
+  ansible.builtin.template:
+    src: conf/apcm-maintenance/exportNGINX.ini.j2
+    dest: "{{ nginx_maintenance_path }}/data/exportNGINX.ini"
+    mode: '0600'
+    owner: "{{ nginx_maintenance_user }}"
+    group: "{{ nginx_maintenance_user }}"
+  tags: [nginx, config, cron]
+
+- name: Deploy exportNGINXLogs.sh
+  ansible.builtin.copy:
+    src: scripts/exportNGINXLogs.sh
+    dest: "{{ nginx_maintenance_path }}/exportNGINXLogs.sh"
+    mode: '0700'
+    owner: "{{ nginx_maintenance_user }}"
+    group: "{{ nginx_maintenance_user }}"
+  tags: [nginx, config, cron]
+
+- name: Ensure maintenance user can read nginx logs
+  ansible.builtin.file:
+    path: "{{ nginx_log_directory }}"
+    state: directory
+    mode: '0750'
+    owner: root
+    group: adm
+  tags: [nginx, config, cron]
+
+- name: Register nginx logs export cron job
+  ansible.builtin.cron:
+    name: "Export nginx logs"
+    user: "{{ nginx_maintenance_user }}"
+    job: "cd {{ nginx_maintenance_path }} && {{ nginx_maintenance_path }}/exportNGINXLogs.sh"
+    minute: "{{ nginx_cron_minute }}"
+    hour: "{{ nginx_cron_hour }}"
+    state: present
+  tags: [nginx, config, cron]

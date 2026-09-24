@@ -1,11 +1,51 @@
 ---
 # Nginx configuration tasks (run by playbook/config_nginx.yml)
 # Replaces the bundle scripts: _copy_config.sh, _copy_static.sh,
-# _setup_certificate.sh, 2-nginx--deploy-cron.sh (see MIGRATE.md)
+# _setup_certificate.sh, 2-nginx--deploy-cron.sh / _create-cronjob.sh
+# (see MIGRATE.md). Linux only for now; Windows config tasks will be
+# added separately (see TODO at the bottom).
 # Idempotent: safe to re-run to apply configuration changes.
-# TODO (migration): implement with Jinja2 templates and Ansible modules
-#   1. deploy_config.yml   - nginx.conf, sites-enabled, tcpconf.d, apcm-config, apcm-shared
-#   2. deploy_static.yml   - favicon, index/error pages, fonts
-#   3. setup_certificate.yml - selfsigned/custom certificates + ffdhe2048.txt
-#   4. deploy_cron.yml     - log export cron (Linux) / scheduled tasks (Windows)
-#   5. validate + reload (nginx -t before reload)
+
+- name: Include configuration deployment tasks
+  ansible.builtin.include_tasks: deploy_config.yml
+  tags: [nginx, config, nginx_config]
+
+- name: Include static files deployment tasks
+  ansible.builtin.include_tasks: deploy_static.yml
+  tags: [nginx, config, static]
+
+- name: Include certificate setup tasks
+  ansible.builtin.include_tasks: setup_certificate.yml
+  tags: [nginx, config, cert]
+
+- name: Include cron deployment tasks (Linux)
+  ansible.builtin.include_tasks: deploy_cron_linux.yml
+  when: ansible_facts['os_family'] != 'Windows'
+  tags: [nginx, config, cron]
+
+- name: Validate nginx configuration
+  ansible.builtin.command: nginx -t
+  register: nginx_config_test
+  changed_when: false
+  when: ansible_facts['os_family'] != 'Windows'
+  tags: [nginx, config, validate]
+
+- name: Fail on invalid nginx configuration
+  ansible.builtin.fail:
+    msg: "nginx -t failed: {{ nginx_config_test.stderr | default(nginx_config_test.stdout) }}"
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+    - nginx_config_test.rc != 0
+  tags: [nginx, config, validate]
+
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+    - nginx_config_test.rc == 0
+  tags: [nginx, config, reload]
+
+# TODO (migration): Windows - deploy nginx.zip from bundle, service
+# install/validate via nginx.exe -t (see MIGRATE.md sections on Windows).

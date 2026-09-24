@@ -1,0 +1,7 @@
+#define ip that can access the rest-api
+
+#default: same as the main app, can be commented to disable to create a different list
+include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/app-access.config;
+
+#sample
+#allow 10.11.0.0/16;

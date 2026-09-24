@@ -1,0 +1,5 @@
+  ssl_certificate {{ nginx_home_directory }}/certs/apcm-cert.crt;
+  ssl_certificate_key {{ nginx_home_directory }}/certs/apcm-cert.key;
+  #ssl_trusted_certificate {{ nginx_home_directory }}/certs/apcm-chain.pem;
+  ssl_stapling on;
+  ssl_stapling_verify on;
