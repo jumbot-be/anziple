@@ -1,0 +1,23 @@
+---
+- name: Configure Databases (MongoDB users/collections, PostgreSQL databases/users)
+  hosts: "{{ 'all' if (mongodb_host == 'localhost' and not (postgresql_rds_enabled | default(false))) else mongodb_host }}"
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+  tasks:
+    - name: Run MongoDB initialization tasks
+      ansible.builtin.include_role:
+        name: mongodb
+        tasks_from: config
+      when: payara_type | default('') != 'frontend'
+      tags: [mongodb, databases, config]
+    - name: Run PostgreSQL initialization tasks
+      ansible.builtin.include_role:
+        name: postgresql
+        tasks_from: config
+      tags: [postgresql, databases, config]
+    - name: Cleanup temporary files
+      ansible.builtin.include_role:
+        name: cleanup
+      tags: [databases, config]

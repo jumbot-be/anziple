@@ -1,0 +1,11 @@
+---
+# PostgreSQL configuration/initialization tasks (run by playbook/config_databases.yml)
+# Replaces manual execution of bundle scripts:
+#   resources/sql/latest/postgresql/1-create-database-*.sql
+# Non-RDS only: when postgresql_rds_enabled is true, databases/users/grants
+# are handled by roles/postgresql/tasks/rds.yml during deployment.
+# (see MIGRATE-PAYARA.md, section "Scripts d'initialisation des bases de données")
+# Idempotent: safe to re-run.
+# TODO (migration): implement with community.postgresql modules
+#   1. run/replace 1-create-database-*.sql (when not RDS)
+#   2. verify idempotence (no duplicate execution with rds.yml)

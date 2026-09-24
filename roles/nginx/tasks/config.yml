@@ -1,0 +1,11 @@
+---
+# Nginx configuration tasks (run by playbook/config_nginx.yml)
+# Replaces the bundle scripts: _copy_config.sh, _copy_static.sh,
+# _setup_certificate.sh, 2-nginx--deploy-cron.sh (see MIGRATE.md)
+# Idempotent: safe to re-run to apply configuration changes.
+# TODO (migration): implement with Jinja2 templates and Ansible modules
+#   1. deploy_config.yml   - nginx.conf, sites-enabled, tcpconf.d, apcm-config, apcm-shared
+#   2. deploy_static.yml   - favicon, index/error pages, fonts
+#   3. setup_certificate.yml - selfsigned/custom certificates + ffdhe2048.txt
+#   4. deploy_cron.yml     - log export cron (Linux) / scheduled tasks (Windows)
+#   5. validate + reload (nginx -t before reload)
