@@ -27,6 +27,23 @@ Main configuration variables are located in `group_vars/all.yml`:
 - `adr_base_path_linux`: Base installation directory for Linux (default: `/opt/adr`).
 - `adr_base_path_windows`: Base installation directory for Windows (default: `C:\adr`).
 - `artifacts`: A dictionary containing download URLs (or local paths) and SHA256 hashes for each component.
+- `unattended_upgrades_enabled`: Install and enable `unattended-upgrades` for automatic security updates on Debian/Ubuntu hosts (default: `true`).
+- `unattended_upgrades_interval_days`: Interval in days between unattended-upgrades runs (default: `7`, i.e. weekly).
+
+#### MongoDB kernel hold
+
+`mongod` is incompatible with Linux kernels 6.19 through 7.0.13 (TCMalloc/rseq crash). On Debian/Ubuntu database hosts, the `mongodb` role:
+
+1. Removes any already-installed incompatible kernel image/modules packages (e.g. a 7.0.x kernel pulled in before the hold was in place), so a reboot cannot boot into a kernel where `mongod` refuses to start.
+2. Places all installed versioned kernel packages and kernel meta-packages on `apt-mark hold`, so that neither `apt upgrade` nor `unattended-upgrades` can pull a newer kernel.
+
+This is controlled by:
+
+- `mongodb_kernel_hold_enabled`: Enable the kernel hold (default: `true`, see `roles/mongodb/defaults/main.yml`).
+- `mongodb_kernel_incompatible_pattern`: Pattern matching versioned kernel packages in the incompatible range (6.19–7.0.13); matching packages are removed.
+- `mongodb_kernel_versioned_package_pattern` / `mongodb_kernel_meta_package_pattern`: Patterns selecting the kernel packages to hold.
+
+The machine stays on its current (compatible) kernel until packages are unheld manually (`apt-mark unhold`) or `mongodb_kernel_hold_enabled` is set to `false`.
 
 ### Local vs Remote Sources
 The roles automatically detect if an artifact source is a remote URL or a local file on the Ansible control node:
