@@ -50,7 +50,7 @@
         argv:
           - dpkg-query
           - -W
-          - -f=${binary:Package}
+          - '-f=${binary:Package}\n'
       register: mongodb_installed_packages
       changed_when: false
 
