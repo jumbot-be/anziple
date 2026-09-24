@@ -258,6 +258,21 @@ python3 scripts/generate_release_vars.py /opt/SOURCES/ADR-4.0.10/checksums > var
 cat checksums.txt | python3 scripts/generate_release_vars.py > vars/releases/3.3.1.yml
 ```
 
+### Adding a New Release (e.g. 4.0.11)
+
+1. Create `vars/releases/4.0.11.yml` (copy the structure from the closest release file and update names/checksums; checksums can be generated with `scripts/generate_release_vars.py`).
+2. Once the bundle artifacts are available locally, extract their sources into the git-ignored `TMP-CONFIG/` reference area for template conversion analysis:
+
+```bash
+# Extract all bundles for a release (nginx, payara, keycloak)
+./scripts/extract_bundle_sources.sh 4.0.11
+
+# Or a single bundle
+./scripts/extract_bundle_sources.sh 4.0.11 nginx
+```
+
+The script reads artifact paths from the release file and extracts each zip under `TMP-CONFIG/sources/<bundle>/<bundle-name>/`. Artifacts that are not yet available (or still marked `REPLACE_ME`) are skipped with a warning. `TMP-CONFIG/` is git-ignored: it is only a local working copy used to convert bundle configuration files into Jinja2 templates (see `MIGRATE.md`, `MIGRATE-PAYARA.md`, `MIGRATE-KEYCLOAK.md`).
+
 ### Keycloak Flavors
 The system supports two Keycloak distributions: Standard and Red Hat (RH).
 - `keycloak_flavor: "rh"` (default): Uses the Red Hat bundle.
