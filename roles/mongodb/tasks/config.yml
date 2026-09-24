@@ -1,0 +1,37 @@
+---
+# MongoDB configuration/initialization tasks (run by playbook/config_databases.yml)
+# Idempotent: safe to re-run.
+#
+# Application users are NOT created inline: they are created by JS scripts
+# provided by the dev team (bundle resources/mongo/latest/*.js, e.g.
+# 1-create-default-collection.js, 2-create-users-roles.js — see
+# MIGRATE-PAYARA.md section 9). Ansible only executes those scripts.
+#
+# NOTE: the MongoDB admin user bootstrap stays in the mongodb role install
+# tasks (no-auth bootstrap); this file runs the application-level init
+# scripts with admin credentials, using the mongosh convention of the role
+# (community.mongodb is not part of the installed collections).
+
+- name: Run MongoDB init scripts (Linux)
+  ansible.builtin.shell: |
+    mongosh --port 27017 -u "{{ mongodb_admin_user }}" -p "{{ mongodb_admin_password }}" --file "{{ item }}"
+  loop: "{{ mongodb_init_scripts | default([]) }}"
+  register: mongodb_init_scripts_result
+  changed_when: true
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+    - mongodb_init_scripts | default([]) | length > 0
+  no_log: true
+  tags: [mongodb, databases, init]
+
+- name: Run MongoDB init scripts (Windows)
+  ansible.windows.win_shell: |
+    & "{{ mongodb_bin_path_windows }}\mongosh.exe" --port 27017 -u "{{ mongodb_admin_user }}" -p "{{ mongodb_admin_password }}" --file "{{ item }}"
+  loop: "{{ mongodb_init_scripts | default([]) }}"
+  register: mongodb_init_scripts_result_win
+  changed_when: true
+  when:
+    - ansible_facts['os_family'] == 'Windows'
+    - mongodb_init_scripts | default([]) | length > 0
+  no_log: true
+  tags: [mongodb, databases, init]
