@@ -1,0 +1,10 @@
+---
+# MongoDB configuration/initialization tasks (run by playbook/config_databases.yml)
+# Replaces manual execution of bundle scripts:
+#   resources/mongo/latest/1-create-default-collection.js
+#   resources/mongo/latest/2-create-users-roles.js
+# (see MIGRATE-PAYARA.md, section "Scripts d'initialisation des bases de données")
+# Idempotent: safe to re-run.
+# TODO (migration): implement with community.mongodb modules
+#   1. default collection creation
+#   2. application users (pho, adg, cms, hmi) with Vault passwords

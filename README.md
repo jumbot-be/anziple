@@ -292,6 +292,46 @@ Each application role now contains separate tasks in `tasks/`:
 - `start.yml`: Starts the service.
 - `update.yml`: Full update cycle (Stop -> Backup -> Dependencies -> Installation -> Start).
 
+## Configuration Procedure (separate from install/update)
+
+Configuration is being split from installation and updates: the existing playbooks keep handling packages and middleware, while a dedicated `config_*` playbook series applies (and re-applies) component configuration. This allows validating each part independently, and re-running configuration alone after an update when only small settings changed.
+
+### 1. Full Configuration
+
+Applies configuration for all components, in dependency order (databases -> Keycloak -> Payara -> Nginx):
+
+```bash
+ansible-playbook config.yml --ask-vault-pass
+```
+
+*(This playbook calls `playbook/config_all.yml`)*
+
+### 2. Targeted Component Configuration
+
+Each component has its own configuration playbook:
+
+```bash
+ansible-playbook playbook/config_databases.yml --ask-vault-pass
+ansible-playbook playbook/config_keycloak.yml --ask-vault-pass
+ansible-playbook playbook/config_payara.yml --ask-vault-pass
+ansible-playbook playbook/config_nginx.yml --ask-vault-pass
+```
+
+### 3. Granular Validation with Tags
+
+Each configuration task is tagged, so a single part can be validated at a time:
+
+```bash
+# Only Nginx configuration
+ansible-playbook playbook/config_nginx.yml --ask-vault-pass --tags nginx
+
+# Only the database initialization part
+ansible-playbook playbook/config_databases.yml --ask-vault-pass --tags mongodb
+ansible-playbook playbook/config_databases.yml --ask-vault-pass --tags postgresql
+```
+
+Each role exposes a `tasks/config.yml` entry point (like the existing `update.yml`/`start.yml`/`stop.yml` pattern). These entry points currently contain the migration plan as TODO comments and will be implemented step by step (see `MIGRATE.md`, `MIGRATE-PAYARA.md`, `MIGRATE-KEYCLOAK.md`).
+
 ## Administration and Maintenance
 
 Other maintenance playbooks are available in `playbook/`:

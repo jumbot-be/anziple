@@ -1,0 +1,18 @@
+---
+- name: Configure Keycloak
+  hosts: all
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/all_secrets.yml
+    - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
+  tasks:
+    - name: Run Keycloak configuration tasks
+      ansible.builtin.include_role:
+        name: keycloak
+        tasks_from: config
+      when: "'backend_servers' not in group_names"
+      tags: [keycloak, config]
+    - name: Cleanup temporary files
+      ansible.builtin.include_role:
+        name: cleanup
+      tags: [keycloak, config]

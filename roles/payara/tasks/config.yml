@@ -1,0 +1,14 @@
+---
+# Payara configuration tasks (run by playbook/config_payara.yml)
+# Replaces the bundle scripts: _setup-server.sh, _setup-front.sh,
+# _setup-precheck.sh, _setup-postcheck.sh, cron jobs,
+# DB init scripts (see MIGRATE-PAYARA.md)
+# Idempotent: safe to re-run to apply configuration changes.
+# TODO (migration): implement with Jinja2 templates and Ansible modules
+#   1. precheck.yml        - validations before configuration
+#   2. init_databases.yml - MongoDB collections/users, PostgreSQL/SQLServer scripts
+#   3. deploy_config.yml  - asadmin resources, pools (apcm-mongo-*, apcm-dbpool),
+#                           mail resources, JVM settings, logback, mail XML
+#   4. deploy_cron.yml     - front/backend cron jobs
+#   5. postcheck.yml       - ping pools, verify resources
+# NOTE: requires DBs to be initialized first (playbook/config_databases.yml)
