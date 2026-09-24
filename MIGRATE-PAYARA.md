@@ -821,6 +821,138 @@ Ces scripts contiennent la **configuration spécifique** pour Backend et Fronten
 
 ---
 
+### 9️⃣ Scripts d'initialisation des bases de données (`mongo/latest/*.js`, `sql/latest/*.sql`)
+
+#### **Fonctionnalités**
+
+| Type | Script | Détails |
+|------|--------|---------|
+| **MongoDB** | `resources/mongo/latest/1-create-default-collection.js` | Crée la collection par défaut (`apcm-phoenix-default`) |
+| **MongoDB** | `resources/mongo/latest/2-create-users-roles.js` | Crée les users et rôles (pho, adg, cms, hmi) |
+| **PostgreSQL** | `resources/sql/latest/postgresql/1-create-database-20260529.sql` | Crée bases, users et grants PostgreSQL |
+| **SQLServer** | `resources/sql/latest/sqlserver/1-create-database-20260529-ms.sql` | Variante MS-SQL du même script |
+
+Ces scripts sont filtrés par Ant (tokens de connexion `@...@`), puis exécutés manuellement après l'installation des bases. Ils sont consommés par les pools de connexion configurés dans Payara (`apcm-mongo-*`, `apcm-dbpool`).
+
+#### **Problèmes**
+
+| Problème | Impact | Solution Ansible |
+|----------|--------|------------------|
+| **Exécution manuelle** | Étape oubliable, non reproductible | Tâches idempotentes `init_databases.yml` |
+| **Secrets en clair** | Mots de passe DB filtrés dans `generated/` | Variables Vault + `no_log: true` |
+| **Pas de conditionnement** | Réexécutés à chaque run ou jamais | Modules idempotents (create if missing) |
+| **RDS non couvert** | Le rôle `postgresql` actuel ne crée les bases que pour RDS | Étendre/généraliser la création de bases |
+
+#### **Solution Ansible**
+
+```yaml
+# roles/payara/tasks/init_databases.yml
+# À exécuter après l'installation des bases (rôles mongodb/postgresql)
+# et AVANT le setup Payara (pools de connexion)
+
+# ============================================================
+# 1. MongoDB : collection par défaut + users/rôles
+# ============================================================
+
+- name: Run MongoDB init scripts
+  community.mongodb.mongodb_shell:
+    login_host: "{{ mongodb_host }}"
+    login_port: "{{ mongodb_port }}"
+    login_database: "{{ mongo_database_name }}"
+    login_user: "{{ mongodb_admin_user | default(omit) }}"
+    login_password: "{{ mongodb_admin_password | default(omit) }}"
+    evalfile: "{{ payara_extract_path }}/generated/resources/mongo/latest/{{ item }}"
+  loop:
+    - 1-create-default-collection.js
+    - 2-create-users-roles.js
+  no_log: true
+  when: ansible_facts['os_family'] != 'Windows'
+  tags: [payara, database, mongo]
+
+# Alternative : créer les users via le module dédié (plus idempotent)
+- name: Ensure MongoDB application users exist
+  community.mongodb.mongodb_user:
+    login_host: "{{ mongodb_host }}"
+    login_port: "{{ mongodb_port }}"
+    login_user: "{{ mongodb_admin_user | default(omit) }}"
+    login_password: "{{ mongodb_admin_password | default(omit) }}"
+    database: "{{ mongo_database_name }}"
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    roles: "{{ item.roles }}"
+    state: present
+  loop:
+    - name: apcm-pho
+      password: "{{ vault_mongo_pho_password }}"
+      roles: readWrite
+    - name: apcm-adg
+      password: "{{ vault_mongo_adg_password }}"
+      roles: readWrite
+    - name: apcm-cms
+      password: "{{ vault_mongo_cms_password }}"
+      roles: readWrite
+    - name: apcm-hmi
+      password: "{{ vault_mongo_hmi_password }}"
+      roles: readWrite
+  no_log: true
+  when: ansible_facts['os_family'] != 'Windows'
+  tags: [payara, database, mongo]
+
+# ============================================================
+# 2. PostgreSQL : exécution du script de création (hors RDS)
+# ============================================================
+
+- name: Run PostgreSQL init script (local)
+  community.postgresql.postgresql_script:
+    login_host: "{{ postgresql_host }}"
+    login_port: "{{ postgresql_port | default(5432) }}"
+    login_user: "{{ postgresql_admin_user }}"
+    login_password: "{{ vault_postgresql_admin_password }}"
+    path: "{{ payara_extract_path }}/generated/resources/sql/latest/postgresql/1-create-database-20260529.sql"
+  no_log: true
+  when:
+    - not (postgresql_rds_enabled | default(false))
+    - ansible_facts['os_family'] != 'Windows'
+  tags: [payara, database, postgres]
+
+# Note RDS : si `postgresql_rds_enabled: true`, la création des bases/users/grants
+# est déjà couverte par `roles/postgresql/tasks/rds.yml` — ne pas réexécuter le script SQL.
+
+# ============================================================
+# 3. SQLServer (si backend MS-SQL requis)
+# ============================================================
+
+- name: Run SQLServer init script
+  ansible.builtin.command:
+    cmd: >-
+      sqlcmd -S {{ mssql_host }} -U {{ mssql_admin_user }} -P {{ vault_mssql_admin_password }}
+      -i {{ payara_extract_path }}/generated/resources/sql/latest/sqlserver/1-create-database-20260529-ms.sql
+  no_log: true
+  when: mssql_enabled | default(false)
+  tags: [payara, database, mssql]
+```
+
+**Dépendances** :
+```bash
+ansible-galaxy collection install community.mongodb community.postgresql
+```
+
+**Ordre d'exécution dans `tasks/main.yml`** :
+`init_databases.yml` **avant** le setup Payara (`setup_server.yml`/`setup_front.yml`), car les pools de connexion (`apcm-mongo-*`, `apcm-dbpool`) échouent au ping si les bases/users n'existent pas.
+
+**Variables à définir** (Vault) :
+```yaml
+# group_vars/all_secrets.yml
+vault_mongo_pho_password: "..."
+vault_mongo_adg_password: "..."
+vault_mongo_cms_password: "..."
+vault_mongo_hmi_password: "..."
+vault_postgresql_admin_password: "..."
+vault_mssql_admin_password: "..."
+```
+
+---
+
 ## 🎯 Solutions Complètes par Type de Déploiement
 
 ### Structure Recommandée
@@ -987,8 +1119,13 @@ phoenix_datadir_password: ""
   - [ ] `tasks/postcheck.yml`
   - [ ] `tasks/deploy_front_cron.yml`
   - [ ] `tasks/deploy_backend_cron.yml`
+  - [ ] `tasks/init_databases.yml` (remplace l'exécution manuelle de `mongo/latest/*.js` et `sql/latest/**/*.sql`)
+    - [ ] MongoDB : collection par défaut + users (pho, adg, cms, hmi)
+    - [ ] PostgreSQL : script `1-create-database-*.sql` (hors RDS)
+    - [ ] SQLServer : variante `-ms.sql` (si backend MS-SQL requis)
 
 - [ ] **Variables**
+  - [ ] Secrets d'initialisation DB dans `group_vars/all_secrets.yml` (Vault, `no_log: true`)
   - [ ] Définir toutes les variables dans `group_vars/all.yml`
   - [ ] Créer `group_vars/all_secrets.yml` (encrypted)
   - [ ] Définir les defaults dans `roles/payara/defaults/main.yml`
@@ -998,6 +1135,8 @@ phoenix_datadir_password: ""
   - [ ] Tester chaque type de déploiement
   - [ ] Tester avec PostgreSQL
   - [ ] Tester avec MongoDB
+  - [ ] Tester l'initialisation MongoDB (collection + users) sur instance vide
+  - [ ] Tester l'initialisation PostgreSQL (script SQL) et vérifier le non-double-exécution avec `rds.yml`
   - [ ] Tester le clustering
   - [ ] Vérifier l'intégration avec Keycloak
 

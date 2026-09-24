@@ -852,6 +852,7 @@ proxy_host_fqdn: "localhost"
   - [ ] `tasks/deploy_cron.yml`
   - [ ] `tasks/deploy_cron_linux.yml`
   - [ ] `tasks/deploy_cron_windows.yml`
+  - [ ] `tasks/init_database.yml` (création de la base `keycloak_db` et de l'utilisateur `keycloak_usr` si installation from scratch — hors RDS, couvert par `roles/postgresql/tasks/rds.yml`)
 
 - [ ] **Variables**
   - [ ] Définir toutes les variables dans `group_vars/all.yml`
@@ -864,6 +865,7 @@ proxy_host_fqdn: "localhost"
   - [ ] Tester les certificats SSL
   - [ ] Tester le service Keycloak
   - [ ] Vérifier que Keycloak démarre correctement
+  - [ ] Tester l'initialisation de la base Keycloak sur une instance PostgreSQL vide
 
 - [ ] **Nettoyage**
   - [ ] Supprimer les références aux scripts dans la documentation
