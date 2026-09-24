@@ -1,0 +1,19 @@
+[Unit]
+Description=Ampacimon nginx-proxy Server
+After=syslog.target network.target
+Before=httpd.service
+
+[Service]
+EnvironmentFile=
+User=
+LimitNOFILE=102642
+PIDFile=
+ExecStart=
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+{ 
+    "Name" :"nginx"
+    ,"Command" :"nginx\\nginx.exe"
+    ,"Args" :""
+    ,"DisplayName" :"Apcm-nginx-proxy"
+    ,"Description" :"Ampacimon nginx-proxy Server"
+}
+
