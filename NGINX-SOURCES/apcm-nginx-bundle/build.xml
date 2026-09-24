@@ -1,0 +1,31 @@
+<project name="payara-bundle" default="replace">
+
+    <condition property="params.set">
+        <and>
+            <isset property="profile"/>
+        </and>
+    </condition>
+
+    <target name="check">
+        <fail unless="params.set">Must specify the parameters: profile</fail>
+    </target>
+
+    <target name="replace" depends="check">	
+        <copy todir="generated">
+            <fileset dir="resources">
+                <include name="**/*.ico"/>
+                <include name="**/*.woff"/>
+                <include name="**/*.zip"/>
+            </fileset>
+        </copy>
+        <filter filtersfile="profiles/${profile}/config.properties"/>
+        <copy todir="generated" filtering="true" overwrite="true">
+            <fileset dir="resources">
+                <exclude name="**/*.ico"/>
+                <exclude name="**/*.woff"/>
+                <exclude name="**/*.zip"/>
+            </fileset>
+        </copy>
+    </target>
+
+</project>
