@@ -31,53 +31,16 @@
 
 - name: Install JDK on Linux
   block:
-    - name: Determine if JDK source is local (Linux)
-      ansible.builtin.set_fact:
-        common_jdk_is_local: "{{ not (item.artifact.url.startswith('http://') or item.artifact.url.startswith('https://')) }}"
-      loop: "{{ required_jdks }}"
-      register: jdk_locality_results
-
     - name: Download Zulu JDK for Linux
-      ansible.builtin.get_url:
-        url: "{{ item.artifact.url }}"
-        dest: "/tmp/{{ item.artifact.name }}"
-        checksum: "{{ item.artifact.checksum }}"
-        mode: '0644'
-        validate_certs: "{{ item.artifact.validate_certs | default(ansible_validate_certs) | default(true) }}"
+      ansible.builtin.include_role:
+        name: integrity
+      vars:
+        integrity_artifact_url: "{{ item.artifact.url }}"
+        integrity_artifact_dest: "/tmp/{{ item.artifact.name }}"
+        integrity_artifact_checksum: "{{ item.artifact.checksum }}"
+        integrity_validate_certs: "{{ item.artifact.validate_certs | default(ansible_validate_certs) | default(true) }}"
+        integrity_force_os: "{{ ansible_facts.get('os_family', 'Linux') }}"
       loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      when: not (jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local)
-
-    - name: Copy Zulu JDK for Linux
-      ansible.builtin.copy:
-        src: "{{ item.artifact.url }}"
-        dest: "/tmp/{{ item.artifact.name }}"
-        mode: '0644'
-      loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      when: jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
-
-    - name: Verify JDK integrity after copy (Linux)
-      ansible.builtin.stat:
-        path: "/tmp/{{ item.artifact.name }}"
-        checksum_algorithm: sha256
-      loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      register: common_jdk_stats_linux
-      when: jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
-
-    - name: Fail if JDK integrity check fails (Linux)
-      ansible.builtin.fail:
-        msg: "JDK integrity check failed for {{ item.artifact.name }}. Expected {{ item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum }}, got {{ common_jdk_stats_linux.results[idx].stat.checksum }}"
-      loop: "{{ required_jdks }}"
-      loop_control:
-        index_var: idx
-      when:
-        - jdk_locality_results.results[idx].ansible_facts.common_jdk_is_local
-        - common_jdk_stats_linux.results[idx].stat.checksum != (item.artifact.checksum.split(':')[1] if ':' in item.artifact.checksum else item.artifact.checksum)
 
     - name: Check if legacy jdk symlink exists (Linux)
       ansible.builtin.stat:

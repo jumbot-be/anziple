@@ -37,9 +37,23 @@
     dest: "{{ keycloak_extract_path }}"
     remote_src: true
 
+- name: Flatten bundle directory (Linux)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd "{{ keycloak_extract_path }}"
+    if [ -d "{{ keycloak_extract_dir }}" ]; then
+      cp -a "{{ keycloak_extract_dir }}"/. .
+      rm -rf "{{ keycloak_extract_dir }}"
+      echo flattened
+    fi
+  args:
+    executable: /bin/bash
+  register: keycloak_flatten_result
+  changed_when: "'flattened' in keycloak_flatten_result.stdout"
+
 - name: Find all shell scripts in Keycloak directory
   ansible.builtin.find:
-    paths: "{{ keycloak_actual_path }}"
+    paths: "{{ keycloak_extract_path }}"
     patterns: "*.sh"
     recurse: true
   register: keycloak_scripts
@@ -52,20 +66,20 @@
 
 - name: Create profiles/ansible directory
   ansible.builtin.file:
-    path: "{{ keycloak_actual_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible"
+    path: "{{ keycloak_extract_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible"
     state: directory
     mode: '0755'
 
 - name: Template config.properties
   ansible.builtin.template:
     src: config.properties.j2
-    dest: "{{ keycloak_actual_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible{{ keycloak_sep }}config.properties"
+    dest: "{{ keycloak_extract_path }}{{ keycloak_sep }}profiles{{ keycloak_sep }}ansible{{ keycloak_sep }}config.properties"
     mode: '0644'
 
 - name: Run prepare-config.sh (Linux)
   ansible.builtin.command:
     cmd: "./prepare-config.sh ansible"
-    chdir: "{{ keycloak_actual_path }}"
+    chdir: "{{ keycloak_extract_path }}"
   environment:
     JAVA_HOME: "{{ keycloak_java_home | default(common_java_home) | default('') }}"
     PATH: "{{ keycloak_java_home | default(common_java_home) | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -73,7 +87,7 @@
 
 - name: Create Keycloak symbolic link (Linux)
   ansible.builtin.file:
-    src: "{{ keycloak_actual_path }}{{ keycloak_sep }}keycloak"
+    src: "{{ keycloak_extract_path }}{{ keycloak_sep }}keycloak"
     dest: "{{ keycloak_symlink_path }}"
     state: link
     force: true
@@ -87,14 +101,14 @@
 
 - name: Find mandatory scripts
   ansible.builtin.find:
-    paths: "{{ keycloak_actual_path }}"
+    paths: "{{ keycloak_extract_path }}"
     patterns: "[1-9]*-keycloak--*.sh"
   register: keycloak_mandatory_scripts
 
 # - name: Run mandatory scripts (Linux)
 #   ansible.builtin.command:
 #     cmd: "./{{ item.path | basename }}"
-#     chdir: "{{ keycloak_actual_path }}"
+#     chdir: "{{ keycloak_extract_path }}"
 #   environment:
 #     JAVA_HOME: "{{ common_java_home | default('') }}"
 #     PATH: "{{ common_java_home | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -103,11 +117,11 @@
 
 - name: Verify Keycloak extraction
   ansible.builtin.stat:
-    path: "{{ keycloak_actual_path }}/keycloak"
+    path: "{{ keycloak_extract_path }}/keycloak"
   register: keycloak_verify_stat
 
 - name: Assert Keycloak is present
   ansible.builtin.assert:
     that:
       - keycloak_verify_stat.stat.exists
-    msg: "Keycloak server not found at {{ keycloak_actual_path }}/keycloak"
+    msg: "Keycloak server not found at {{ keycloak_extract_path }}/keycloak"

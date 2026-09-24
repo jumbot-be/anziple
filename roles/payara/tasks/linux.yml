@@ -22,28 +22,42 @@
     dest: "{{ payara_extract_path }}"
     remote_src: true
 
+- name: Flatten bundle directory (Linux)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd "{{ payara_extract_path }}"
+    if [ -d "{{ payara_extract_dir }}" ]; then
+      cp -a "{{ payara_extract_dir }}"/. .
+      rm -rf "{{ payara_extract_dir }}"
+      echo flattened
+    fi
+  args:
+    executable: /bin/bash
+  register: payara_flatten_result
+  changed_when: "'flattened' in payara_flatten_result.stdout"
+
 - name: Ensure shell scripts are executable (Linux)
   ansible.builtin.file:
     path: "{{ item }}"
     mode: '0755'
-  loop: "{{ query('ansible.builtin.fileglob', payara_actual_path + '/*.sh') }}"
+  loop: "{{ query('ansible.builtin.fileglob', payara_extract_path + '/*.sh') }}"
 
 - name: Create profiles/ansible directory
   ansible.builtin.file:
-    path: "{{ payara_actual_path }}{{ payara_sep }}profiles{{ payara_sep }}ansible"
+    path: "{{ payara_extract_path }}{{ payara_sep }}profiles{{ payara_sep }}ansible"
     state: directory
     mode: '0755'
 
 - name: Template config.properties
   ansible.builtin.template:
     src: config.properties.j2
-    dest: "{{ payara_actual_path }}{{ payara_sep }}profiles{{ payara_sep }}ansible{{ payara_sep }}config.properties"
+    dest: "{{ payara_extract_path }}{{ payara_sep }}profiles{{ payara_sep }}ansible{{ payara_sep }}config.properties"
     mode: '0644'
 
 - name: Run prepare-config.sh (Linux)
   ansible.builtin.command:
     cmd: "./prepare-config.sh ansible"
-    chdir: "{{ payara_actual_path }}"
+    chdir: "{{ payara_extract_path }}"
   environment:
     JAVA_HOME: "{{ payara_java_home | default(common_java_home) | default('') }}"
     PATH: "{{ payara_java_home | default(common_java_home) | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -51,21 +65,21 @@
 
 - name: Create Payara symbolic link (Linux)
   ansible.builtin.file:
-    src: "{{ payara_actual_path }}{{ payara_sep }}payara5"
+    src: "{{ payara_extract_path }}{{ payara_sep }}payara5"
     dest: "{{ payara_symlink_path }}"
     state: link
     force: true
 
 - name: Find mandatory scripts
   ansible.builtin.find:
-    paths: "{{ payara_actual_path }}"
+    paths: "{{ payara_extract_path }}"
     patterns: "[1-9]*-payara--*.sh"
   register: payara_mandatory_scripts
 
 # - name: Run mandatory scripts (Linux)
 #   ansible.builtin.command:
 #     cmd: "./{{ item.path | basename }}"
-#     chdir: "{{ payara_actual_path }}"
+#     chdir: "{{ payara_extract_path }}"
 #   environment:
 #     JAVA_HOME: "{{ common_java_home | default('') }}"
 #     PATH: "{{ common_java_home | default('') }}/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -74,11 +88,11 @@
 
 - name: Verify Payara extraction
   ansible.builtin.stat:
-    path: "{{ payara_actual_path }}/payara5"
+    path: "{{ payara_extract_path }}/payara5"
   register: payara_verify_stat
 
 - name: Assert Payara is present
   ansible.builtin.assert:
     that:
       - payara_verify_stat.stat.exists
-    msg: "Payara server not found at {{ payara_actual_path }}/payara5"
+    msg: "Payara server not found at {{ payara_extract_path }}/payara5"
