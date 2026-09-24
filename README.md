@@ -27,6 +27,14 @@ Main configuration variables are located in `group_vars/all.yml`:
 - `adr_base_path_linux`: Base installation directory for Linux (default: `/opt/adr`).
 - `adr_base_path_windows`: Base installation directory for Windows (default: `C:\adr`).
 - `artifacts`: A dictionary containing download URLs (or local paths) and SHA256 hashes for each component.
+- `unattended_upgrades_enabled`: Install and enable `unattended-upgrades` for automatic security updates on Debian/Ubuntu hosts (default: `true`).
+
+#### MongoDB kernel hold
+
+`mongod` is incompatible with Linux kernel 6.19+ (TCMalloc/rseq crash). On Debian/Ubuntu database hosts, the `mongodb` role places all installed v6.x kernel packages (and their meta-packages) on `apt-mark hold` so that neither `apt upgrade` nor `unattended-upgrades` can pull an incompatible kernel. This is controlled by:
+
+- `mongodb_kernel_hold_enabled`: Enable the kernel hold (default: `true`, see `roles/mongodb/defaults/main.yml`).
+- `mongodb_kernel_v6_package_pattern` / `mongodb_kernel_meta_package_pattern`: Package name patterns that select the kernel packages to hold.
 
 ### Local vs Remote Sources
 The roles automatically detect if an artifact source is a remote URL or a local file on the Ansible control node:

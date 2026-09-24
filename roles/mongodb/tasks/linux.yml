@@ -40,6 +40,47 @@
         state: present
         update_cache: true
 
+- name: Hold kernel v6.x packages to avoid mongod incompatibility (Linux)
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - mongodb_kernel_hold_enabled | bool
+  block:
+    - name: Query installed packages (Linux)
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - -W
+          - -f=${binary:Package}
+      register: mongodb_installed_packages
+      changed_when: false
+
+    - name: List currently held packages (Linux)
+      ansible.builtin.command: apt-mark showhold
+      register: mongodb_held_packages
+      changed_when: false
+
+    - name: Compute kernel packages to hold (Linux)
+      ansible.builtin.set_fact:
+        mongodb_kernel_packages_to_hold: >-
+          {{ ((mongodb_installed_packages.stdout_lines | select('match', mongodb_kernel_v6_package_pattern) | list)
+              + (mongodb_installed_packages.stdout_lines | select('match', mongodb_kernel_meta_package_pattern) | list))
+             | difference(mongodb_held_packages.stdout_lines) }}
+
+    - name: Hold kernel packages (Linux)
+      ansible.builtin.command:
+        argv:
+          - apt-mark
+          - hold
+          - "{{ item }}"
+      loop: "{{ mongodb_kernel_packages_to_hold }}"
+      changed_when: true
+
+    - name: Verify kernel packages are on hold (Linux)
+      ansible.builtin.command: apt-mark showhold
+      register: mongodb_kernel_hold_verify
+      changed_when: false
+      failed_when: mongodb_kernel_packages_to_hold | difference(mongodb_kernel_hold_verify.stdout_lines) | length > 0
+
 - name: Create Log, Data and SSL directories (Linux)
   ansible.builtin.file:
     path: "{{ item }}"

@@ -26,6 +26,33 @@
   register: common_limits_check
   changed_when: false
 
+- name: Configure unattended-upgrades (Linux)
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - unattended_upgrades_enabled | bool
+  block:
+    - name: Install unattended-upgrades (Linux)
+      ansible.builtin.apt:
+        name: unattended-upgrades
+        state: present
+
+    - name: Enable automatic updates via apt timers (Linux)
+      ansible.builtin.copy:
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+          APT::Periodic::Download-Upgradeable-Packages "1";
+          APT::Periodic::AutocleanInterval "7";
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Ensure unattended-upgrades service is enabled (Linux)
+      ansible.builtin.systemd:
+        name: unattended-upgrades
+        enabled: true
+
 - name: Setup JDK facts
   ansible.builtin.include_tasks: setup_jdk.yml
 

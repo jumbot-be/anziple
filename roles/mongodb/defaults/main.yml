@@ -16,3 +16,9 @@ mongodb_bin_path_windows: 'C:\adr\MongoDB\bin'
 
 # until there is a version available to use  {{ ansible_facts['distribution_release'] }}
 mongo_source_url: "https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0"
+
+# Kernel v6.x hold: mongod is incompatible with kernel 6.19+ (TCMalloc/rseq),
+# so installed v6.x kernel packages and meta-packages are held to block any kernel upgrade.
+mongodb_kernel_hold_enabled: true
+mongodb_kernel_v6_package_pattern: '^linux-(image|image-unsigned|headers|modules|modules-extra|buildinfo)-6\.[0-9]+'
+mongodb_kernel_meta_package_pattern: '^linux-(image-|headers-)?(generic|virtual|aws|azure|gcp|oem|lowlatency)'
