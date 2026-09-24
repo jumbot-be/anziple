@@ -1,11 +1,41 @@
 ---
-# PostgreSQL configuration/initialization tasks (run by playbook/config_databases.yml)
-# Replaces manual execution of bundle scripts:
-#   resources/sql/latest/postgresql/1-create-database-*.sql
-# Non-RDS only: when postgresql_rds_enabled is true, databases/users/grants
-# are handled by roles/postgresql/tasks/rds.yml during deployment.
-# (see MIGRATE-PAYARA.md, section "Scripts d'initialisation des bases de données")
-# Idempotent: safe to re-run.
-# TODO (migration): implement with community.postgresql modules
-#   1. run/replace 1-create-database-*.sql (when not RDS)
-#   2. verify idempotence (no duplicate execution with rds.yml)
+# PostgreSQL provisioning entry point (run by playbook/config_databases.yml).
+# All users/databases/grants/ownership provisioning lives here for BOTH
+# local PostgreSQL and RDS/external instances; deploy/update only install
+# the engine.
+#
+# EXCEPTION (RDS): the super admin is NOT created on RDS — it is
+# provisioned by AWS at instance initialization (rdsadmin). The superadmin
+# task only exists in the local targets (config_local_linux.yml /
+# config_local_windows.yml).
+#
+# Idempotent: safe to re-run to apply changes (new user, password rotation,
+# new grants) without touching the installation.
+
+- name: Setup PostgreSQL facts
+  ansible.builtin.include_tasks: setup.yml
+  tags: [always]
+
+- name: Provision local PostgreSQL (Linux)
+  ansible.builtin.include_tasks: config_local_linux.yml
+  when:
+    - postgresql_enabled | default(false)
+    - ansible_facts['os_family'] != 'Windows'
+    - payara_type | default('') != 'frontend'
+  tags: [postgresql, databases, config]
+
+- name: Provision local PostgreSQL (Windows)
+  ansible.builtin.include_tasks: config_local_windows.yml
+  when:
+    - postgresql_enabled | default(false)
+    - ansible_facts['os_family'] == 'Windows'
+  tags: [postgresql, databases, config]
+
+- name: Provision RDS/External PostgreSQL
+  ansible.builtin.include_tasks: config_rds.yml
+  when: postgresql_rds_enabled | default(false)
+  tags: [postgresql, databases, config]
+
+# TODO (migration): run bundle script resources/sql/latest/postgresql/
+# 1-create-database-*.sql for local PostgreSQL when Payara bundle sources
+# are available (see MIGRATE-PAYARA.md section 9). Not applicable to RDS.

@@ -1,6 +1,26 @@
 # MongoDB Configuration Defaults
 mongodb_admin_user: "ampacimonAdmin"
 mongodb_admin_password: "a very complex password please" # Override in Vault
+# Application users (created by tasks/config.yml via config_databases.yml)
+# Passwords come from Vault (group_vars/all_secrets.yml): vault_mongo_*_password
+mongodb_app_users:
+  - name: apcm-pho
+    db: apcm-phoenix-default
+    roles: '"readWrite"'
+    password: "{{ vault_mongo_pho_password | default('CHANGE_ME') }}"
+  - name: apcm-adg
+    db: apcm-phoenix-default
+    roles: '"readWrite"'
+    password: "{{ vault_mongo_adg_password | default('CHANGE_ME') }}"
+  - name: apcm-cms
+    db: apcm-phoenix-default
+    roles: '"readWrite"'
+    password: "{{ vault_mongo_cms_password | default('CHANGE_ME') }}"
+  - name: apcm-hmi
+    db: apcm-phoenix-default
+    roles: '"readWrite"'
+    password: "{{ vault_mongo_hmi_password | default('CHANGE_ME') }}"
+
 mongodb_cert_subj: "/C=BE/ST=LIEGE/L=LIEGE/O=Ampacimon/OU=IT/emailAddress=sysadmin@ampacimon.com/CN={{ ansible_facts['fqdn'] }}"
 
 # OS specific paths

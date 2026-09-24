@@ -345,7 +345,17 @@ ansible-playbook playbook/config_databases.yml --ask-vault-pass --tags mongodb
 ansible-playbook playbook/config_databases.yml --ask-vault-pass --tags postgresql
 ```
 
-Each role exposes a `tasks/config.yml` entry point (like the existing `update.yml`/`start.yml`/`stop.yml` pattern). These entry points currently contain the migration plan as TODO comments and will be implemented step by step (see `MIGRATE.md`, `MIGRATE-PAYARA.md`, `MIGRATE-KEYCLOAK.md`).
+Each role exposes a `tasks/config.yml` entry point (like the existing `update.yml`/`start.yml`/`stop.yml` pattern). The remaining components are implemented step by step (see `MIGRATE.md`, `MIGRATE-PAYARA.md`, `MIGRATE-KEYCLOAK.md`).
+
+### 4. Database Provisioning (implemented)
+
+`playbook/config_databases.yml` is the single provisioning entry point for databases, for BOTH local engines and RDS/external instances. Deploy/update only install and start the engines; users, databases, grants and ownership are provisioned here (idempotent, safe to re-run for a password rotation or a new user):
+
+- **PostgreSQL local** (`roles/postgresql/tasks/config_local_linux.yml` / `config_local_windows.yml`): super admin (local installs only), ADR customer user/database, Keycloak user/database.
+- **PostgreSQL RDS/external** (`roles/postgresql/tasks/config_rds.yml`): same application users/databases/grants against the RDS endpoint. **Exception: the super admin is never created on RDS — AWS provisions it at instance initialization.**
+- **MongoDB** (`roles/mongodb/tasks/config.yml`): application users (pho, adg, cms, hmi) with Vault passwords (`vault_mongo_*_password` in `group_vars/all_secrets.yml`). The admin user bootstrap stays in the install tasks (no-auth bootstrap requirement).
+
+Run order on a fresh environment: `deploy.yml` first (engines), then `config.yml` (provisioning + configuration). Keycloak/Payara connection pools require the databases to exist, hence databases run first in the config series.
 
 ## Administration and Maintenance
 

@@ -5,6 +5,38 @@
 #   resources/mongo/latest/2-create-users-roles.js
 # (see MIGRATE-PAYARA.md, section "Scripts d'initialisation des bases de données")
 # Idempotent: safe to re-run.
-# TODO (migration): implement with community.mongodb modules
-#   1. default collection creation
-#   2. application users (pho, adg, cms, hmi) with Vault passwords
+#
+# NOTE: the MongoDB admin user bootstrap stays in the mongodb role install
+# tasks (no-auth bootstrap); this file manages the APPLICATION users and
+# the default collection, using the mongosh convention of the role
+# (community.mongodb is not part of the installed collections).
+
+- name: Create MongoDB application users (Linux)
+  ansible.builtin.shell: |
+    mongosh --port 27017 -u "{{ mongodb_admin_user }}" -p "{{ mongodb_admin_password }}" --eval 'db.getSiblingDB("{{ item.db }}").createUser({user: "{{ item.name }}", pwd: "{{ item.password }}", roles: [{{ item.roles }}]})'
+  loop: "{{ mongodb_app_users | default([]) }}"
+  register: mongodb_app_user_creation
+  failed_when: false
+  changed_when: "'Successfully added user' in mongodb_app_user_creation.stdout"
+  when:
+    - ansible_facts['os_family'] != 'Windows'
+    - mongodb_app_users | default([]) | length > 0
+  no_log: true
+  tags: [mongodb, databases, users]
+
+- name: Create MongoDB application users (Windows)
+  ansible.windows.win_shell: |
+    & "{{ mongodb_bin_path_windows }}\mongosh.exe" --port 27017 -u "{{ mongodb_admin_user }}" -p "{{ mongodb_admin_password }}" --eval 'db.getSiblingDB("{{ item.db }}").createUser({user: "{{ item.name }}", pwd: "{{ item.password }}", roles: [{{ item.roles }}]})'
+  loop: "{{ mongodb_app_users | default([]) }}"
+  register: mongodb_app_user_creation_win
+  failed_when: false
+  changed_when: "'Successfully added user' in mongodb_app_user_creation_win.stdout"
+  when:
+    - ansible_facts['os_family'] == 'Windows'
+    - mongodb_app_users | default([]) | length > 0
+  no_log: true
+  tags: [mongodb, databases, users]
+
+# TODO (migration): default collection creation
+#   resources/mongo/latest/1-create-default-collection.js
+#   -> run via mongosh once bundle sources are extracted (MIGRATE-PAYARA.md)

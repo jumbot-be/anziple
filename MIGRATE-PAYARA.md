@@ -916,7 +916,8 @@ Ces scripts sont filtrés par Ant (tokens de connexion `@...@`), puis exécutés
   tags: [payara, database, postgres]
 
 # Note RDS : si `postgresql_rds_enabled: true`, la création des bases/users/grants
-# est déjà couverte par `roles/postgresql/tasks/rds.yml` — ne pas réexécuter le script SQL.
+# est couverte par `roles/postgresql/tasks/config_rds.yml` (playbook config_databases.yml)
+# — ne pas réexécuter le script SQL. Exception : le superadmin n'est jamais créé sur RDS.
 
 # ============================================================
 # 3. SQLServer (si backend MS-SQL requis)
@@ -1121,7 +1122,7 @@ phoenix_datadir_password: ""
   - [ ] `tasks/deploy_backend_cron.yml`
   - [ ] `tasks/init_databases.yml` (remplace l'exécution manuelle de `mongo/latest/*.js` et `sql/latest/**/*.sql`)
     - [ ] MongoDB : collection par défaut + users (pho, adg, cms, hmi)
-    - [ ] PostgreSQL : script `1-create-database-*.sql` (hors RDS)
+    - [ ] PostgreSQL : script `1-create-database-*.sql` (hors RDS ; provisioning users/dbs déjà migré vers `tasks/config*.yml`)
     - [ ] SQLServer : variante `-ms.sql` (si backend MS-SQL requis)
 
 - [ ] **Variables**
@@ -1136,7 +1137,7 @@ phoenix_datadir_password: ""
   - [ ] Tester avec PostgreSQL
   - [ ] Tester avec MongoDB
   - [ ] Tester l'initialisation MongoDB (collection + users) sur instance vide
-  - [ ] Tester l'initialisation PostgreSQL (script SQL) et vérifier le non-double-exécution avec `rds.yml`
+  - [ ] Tester l'initialisation PostgreSQL (script SQL) et vérifier le non-double-exécution avec `config_rds.yml`
   - [ ] Tester le clustering
   - [ ] Vérifier l'intégration avec Keycloak
 
