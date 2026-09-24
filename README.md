@@ -353,7 +353,7 @@ Each role exposes a `tasks/config.yml` entry point (like the existing `update.ym
 
 - **PostgreSQL local** (`roles/postgresql/tasks/config_local_linux.yml` / `config_local_windows.yml`): super admin (local installs only), ADR customer user/database, Keycloak user/database.
 - **PostgreSQL RDS/external** (`roles/postgresql/tasks/config_rds.yml`): same application users/databases/grants against the RDS endpoint. **Exception: the super admin is never created on RDS — AWS provisions it at instance initialization.**
-- **MongoDB** (`roles/mongodb/tasks/config.yml`): application users (pho, adg, cms, hmi) with Vault passwords (`vault_mongo_*_password` in `group_vars/all_secrets.yml`). The admin user bootstrap stays in the install tasks (no-auth bootstrap requirement).
+- **MongoDB** (`roles/mongodb/tasks/config.yml`): executes the JS init scripts provided by the dev team (`mongodb_init_scripts`, e.g. the bundle's `1-create-default-collection.js` / `2-create-users-roles.js`) with admin credentials. Application users are created by those scripts, not inline. The admin user bootstrap stays in the install tasks (no-auth bootstrap requirement).
 
 Run order on a fresh environment: `deploy.yml` first (engines), then `config.yml` (provisioning + configuration). Keycloak/Payara connection pools require the databases to exist, hence databases run first in the config series.
 
