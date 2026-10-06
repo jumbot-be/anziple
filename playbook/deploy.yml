@@ -59,6 +59,7 @@
           - "ADR Customer Database: {{ postgresql_adr_db_name }} (owner: {{ postgresql_adr_customer_user }})"
           - "Keycloak User: {{ postgresql_keycloak_user }} / {{ postgresql_adr_keycloak_password }}"
           - "Keycloak Database: {{ postgresql_keycloak_db_name }} (owner: {{ postgresql_keycloak_user }})"
+          - "Connect: {{ postgresql_rds_enabled | default(false) | bool | ternary('PGPASSWORD=<password> psql --host=' ~ postgresql_rds_hostname ~ ' --port=' ~ (postgresql_rds_port | default(5432)) ~ ' --username=' ~ postgresql_adr_customer_user ~ ' --dbname=' ~ postgresql_adr_db_name, 'sudo -u postgres psql --dbname=' ~ postgresql_adr_db_name) }}"
           - ""
           - "--- MongoDB ---"
           - "Host: {{ mongodb_host }}:27017 (TLS: required, auth: enabled)"
