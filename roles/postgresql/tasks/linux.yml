@@ -168,13 +168,13 @@
       register: postgresql_object_check
       changed_when: false
       failed_when: >-
-        postgresql_object_check.query_results[0].list | default([]) | length != 1
-        or postgresql_object_check.query_results[1].list | default([]) | length != 1
-        or postgresql_object_check.query_results[2].list | default([]) | length != 1
-        or postgresql_object_check.query_results[3].list | default([]) | length != 1
-        or postgresql_object_check.query_results[4].list | default([]) | length != 1
-        or postgresql_object_check.query_results[5].list | default([]) | length != 1
-        or postgresql_object_check.query_results[6].list | default([]) | length != 1
+        postgresql_object_check.query_all_results[0] | default([]) | length != 1
+        or postgresql_object_check.query_all_results[1] | default([]) | length != 1
+        or postgresql_object_check.query_all_results[2] | default([]) | length != 1
+        or postgresql_object_check.query_all_results[3] | default([]) | length != 1
+        or postgresql_object_check.query_all_results[4] | default([]) | length != 1
+        or postgresql_object_check.query_all_results[5] | default([]) | length != 1
+        or postgresql_object_check.query_all_results[6] | default([]) | length != 1
 
     - name: Verify the ADR user can authenticate with its password (Linux)
       community.postgresql.postgresql_ping:
