@@ -63,8 +63,8 @@
           - ""
           - "--- MongoDB ---"
           - "Host: {{ mongodb_host }}:27017 (TLS: required, auth: enabled)"
-          - "Admin User: {{ mongodb_admin_user }} / {{ mongodb_admin_password }}"
-          - "Connect: mongosh --host {{ mongodb_host }} --port 27017 -u {{ mongodb_admin_user }} -p '<password>' --authenticationDatabase admin --tls --tlsAllowInvalidCertificates"
+          - "Admin User: {{ mongodb_admin_user | default('UNDEFINED (mongodb role defaults not loaded on this host)') }} / {{ mongodb_admin_password | default('UNDEFINED') }}"
+          - "Connect: mongosh --host {{ mongodb_host }} --port 27017 -u {{ mongodb_admin_user | default('<admin-user>') }} -p '<password>' --authenticationDatabase admin --tls --tlsAllowInvalidCertificates"
           - ""
           - "=================================================="
       when:
