@@ -170,7 +170,7 @@
 
 - name: Check whether the admin user already exists (no-auth bootstrap)
   ansible.builtin.shell: |
-    mongosh --quiet --port 27017 --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
+    mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
   register: mongodb_admin_user_check
   changed_when: false
   failed_when: >-
@@ -179,7 +179,7 @@
 
 - name: Create admin user (no-auth bootstrap)
   ansible.builtin.shell: |
-    mongosh --quiet --port 27017 --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
+    mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
   register: mongodb_user_creation
   when: "'MISSING' in (mongodb_admin_user_check.stdout | default(''))"
   changed_when: mongodb_user_creation.rc == 0
@@ -243,7 +243,7 @@
 
 - name: Verify connection without credentials must fail
   ansible.builtin.shell: |
-    mongosh --port 27017 --eval 'db.runCommand({connectionStatus : 1})'
+    mongosh --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.runCommand({connectionStatus : 1})'
   register: mongodb_auth_test
   failed_when: mongodb_auth_test.rc == 0
   changed_when: false
