@@ -47,9 +47,19 @@
     port: 27017
     timeout: 120
 
+- name: Detect whether mongod currently requires TLS (Windows)
+  ansible.windows.win_shell: |
+    if (& "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --eval 'db.runCommand({ping: 1}') { "plain" }
+      elseif (& "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.runCommand({ping: 1}') { "tls" }
+      else { "unreachable" }
+  register: mongodb_tls_mode_win
+  changed_when: false
+  failed_when: mongodb_tls_mode_win.stdout | trim not in ['plain', 'tls']
+
 - name: Check whether the admin user already exists (no-auth bootstrap Windows)
   ansible.windows.win_shell: |
-    & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
+    $tls = if ("{{ mongodb_tls_mode_win.stdout | trim }}" -eq "tls") { "--tls --tlsAllowInvalidCertificates" } else { "" }
+    & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 $tls --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
   register: mongodb_admin_user_check_win
   changed_when: false
   failed_when: >-
@@ -58,7 +68,8 @@
 
 - name: Create admin user (no-auth bootstrap Windows)
   ansible.windows.win_shell: |
-    & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
+    $tls = if ("{{ mongodb_tls_mode_win.stdout | trim }}" -eq "tls") { "--tls --tlsAllowInvalidCertificates" } else { "" }
+    & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 $tls --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
   register: mongodb_user_creation_win
   when: "'MISSING' in (mongodb_admin_user_check_win.stdout | default(''))"
   changed_when: mongodb_user_creation_win.rc == 0

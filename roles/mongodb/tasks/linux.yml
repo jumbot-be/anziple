@@ -168,9 +168,22 @@
     port: 27017
     timeout: 120
 
+- name: Detect whether mongod currently requires TLS
+  ansible.builtin.shell: |
+    if mongosh --quiet --port 27017 --eval 'db.runCommand({ping: 1})' >/dev/null 2>&1; then
+      echo "plain"
+    elif mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.runCommand({ping: 1})' >/dev/null 2>&1; then
+      echo "tls"
+    else
+      echo "unreachable"
+    fi
+  register: mongodb_tls_mode
+  changed_when: false
+  failed_when: mongodb_tls_mode.stdout != 'plain' and mongodb_tls_mode.stdout != 'tls'
+
 - name: Check whether the admin user already exists (no-auth bootstrap)
   ansible.builtin.shell: |
-    mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
+    mongosh --quiet --port 27017 {{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }} --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
   register: mongodb_admin_user_check
   changed_when: false
   failed_when: >-
@@ -179,7 +192,7 @@
 
 - name: Create admin user (no-auth bootstrap)
   ansible.builtin.shell: |
-    mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
+    mongosh --quiet --port 27017 {{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }} --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
   register: mongodb_user_creation
   when: "'MISSING' in (mongodb_admin_user_check.stdout | default(''))"
   changed_when: mongodb_user_creation.rc == 0
