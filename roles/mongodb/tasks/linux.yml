@@ -147,6 +147,15 @@
   args:
     creates: "{{ mongodb_pem_path }}"
 
+- name: Clear systemd failed state for mongod (avoid start-limit-hit)
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - reset-failed
+      - mongod
+  changed_when: false
+  failed_when: false
+
 - name: Ensure MongoDB is started for user creation (without auth)
   ansible.builtin.service:
     name: mongod
