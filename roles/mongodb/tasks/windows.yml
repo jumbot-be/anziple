@@ -86,9 +86,11 @@
 
 - name: Verify connection without credentials must fail (Windows)
   ansible.windows.win_shell: |
-    & "C:\adr\MongoDB\bin\mongosh.exe" --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.runCommand({connectionStatus : 1})'
+    & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").runCommand({listDatabases: 1})'
   register: mongodb_auth_test_win
-  failed_when: mongodb_auth_test_win.rc == 0
+  failed_when: >-
+    mongodb_auth_test_win.rc == 0
+    or ((mongodb_auth_test_win.stdout | default('')) ~ (mongodb_auth_test_win.stderr | default('')) is search('connect|topology'))
   changed_when: false
 
 - name: Configure Logrotation (Windows)
