@@ -256,9 +256,20 @@
 
 - name: Verify connection without credentials must fail
   ansible.builtin.shell: |
-    mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").runCommand({listDatabases: 1})'
+    set -o pipefail
+    out=$(mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").runCommand({listDatabases: 1})' 2>&1)
+    echo "$out"
+    case "$out" in
+      *"requires authentication"*|*"Unauthorized"*)
+        echo "AUTH_ENFORCED"
+        ;;
+      *)
+        echo "AUTH_NOT_ENFORCED"
+        exit 1
+        ;;
+    esac
+  args:
+    executable: /bin/bash
   register: mongodb_auth_test
-  failed_when: >-
-    mongodb_auth_test.rc == 0
-    or ((mongodb_auth_test.stdout | default('')) ~ (mongodb_auth_test.stderr | default('')) is search('connect|topology'))
+  failed_when: mongodb_auth_test.rc != 0 or 'AUTH_NOT_ENFORCED' in mongodb_auth_test.stdout
   changed_when: false
