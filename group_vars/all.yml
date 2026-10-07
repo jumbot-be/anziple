@@ -51,9 +51,10 @@ backend_payara_host: "{{ (groups['backend_servers'] | default([]) | length > 0) 
 allowed_network_range: "127.0.0.1/32"
 
 # MongoDB bind interfaces (e.g., "127.0.0.1,10.0.0.2")
-# Default to listening on all interfaces in multi-server, but restricted via firewall or allowed_network_range logic if possible.
-# Here we use a variable for manual control.
-mongodb_bind_ips: "127.0.0.1"
+# Default to localhost plus the host primary IPv4 address, so mongod also
+# listens on the instance internal/public IP and is reachable from other hosts.
+# Override in the inventory to restrict or add specific addresses.
+mongodb_bind_ips: "127.0.0.1,{{ ansible_facts['default_ipv4']['address'] | default('127.0.0.1') }}"
 
 # PostgreSQL Configuration
 customer_name: "jula"
