@@ -1,6 +1,12 @@
 # MongoDB Configuration Defaults
 mongodb_admin_user: "ampacimonAdmin"
 mongodb_admin_password: "a very complex password please" # Override in Vault
+
+# Application database init
+mongodb_app_db_name: "ampacimon"
+# DANGEROUS: drops and recreates the application database on every run.
+# Only enable explicitly for a fresh install or a manual reset.
+mongodb_app_db_reset: false
 mongodb_cert_subj: "/C=BE/ST=LIEGE/L=LIEGE/O=Ampacimon/OU=IT/emailAddress=sysadmin@ampacimon.com/CN={{ ansible_facts['fqdn'] }}"
 
 # OS specific paths
