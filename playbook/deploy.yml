@@ -47,14 +47,26 @@
     - ../group_vars/all_secrets.yml
     - "../{{ include_release_vars | default('vars/releases/4.0.9.yml') }}"
   post_tasks:
-    - name: Display PostgreSQL Credentials
+    - name: Display DB connections summary
       ansible.builtin.debug:
         msg:
-          - "PostgreSQL Super Admin: {{ postgresql_admin_user }} / {{ postgresql_admin_password }}"
-          - "PostgreSQL Keycloak User: adr_keycloak_user / {{ postgresql_adr_keycloak_password }}"
-          - "PostgreSQL Keycloak Database: adr_keycloak_{{ customer_name }} / {{ postgresql_adr_keycloak_password }}"
-          - "PostgreSQL ADR Customer User: adr_{{ customer_name }} / {{ postgresql_adr_customer_password }}"
-          - "PostgreSQL ADR Customer Database: adr_{{ customer_name }} / {{ postgresql_adr_customer_password }}"
+          - "========== DATABASE CONNECTIONS SUMMARY =========="
+          - ""
+          - "--- PostgreSQL ---"
+          - "Host: {{ postgresql_rds_enabled | default(false) | bool | ternary(postgresql_rds_hostname ~ ':' ~ (postgresql_rds_port | default(5432)), '127.0.0.1:5432 (local)') }}"
+          - "Super Admin: {{ postgresql_admin_user }} / {{ postgresql_admin_password }}"
+          - "ADR Customer User: {{ postgresql_adr_customer_user }} / {{ postgresql_adr_customer_password }}"
+          - "ADR Customer Database: {{ postgresql_adr_db_name }} (owner: {{ postgresql_adr_customer_user }})"
+          - "Keycloak User: {{ postgresql_keycloak_user }} / {{ postgresql_adr_keycloak_password }}"
+          - "Keycloak Database: {{ postgresql_keycloak_db_name }} (owner: {{ postgresql_keycloak_user }})"
+          - "Connect: {{ postgresql_rds_enabled | default(false) | bool | ternary('PGPASSWORD=<password> psql --host=' ~ postgresql_rds_hostname ~ ' --port=' ~ (postgresql_rds_port | default(5432)) ~ ' --username=' ~ postgresql_adr_customer_user ~ ' --dbname=' ~ postgresql_adr_db_name, 'sudo -u postgres psql --dbname=' ~ postgresql_adr_db_name) }}"
+          - ""
+          - "--- MongoDB ---"
+          - "Host: {{ mongodb_host }}:27017 (TLS: required, auth: enabled)"
+          - "Admin User: {{ mongodb_admin_user | default('UNDEFINED (mongodb role defaults not loaded on this host)') }} / {{ mongodb_admin_password | default('UNDEFINED') }}"
+          - "Connect: mongosh --host {{ mongodb_host }} --port 27017 -u {{ mongodb_admin_user | default('<admin-user>') }} -p '<password>' --authenticationDatabase admin --tls --tlsAllowInvalidCertificates"
+          - ""
+          - "=================================================="
       when:
         - postgresql_admin_user is defined
         - postgresql_admin_password is defined

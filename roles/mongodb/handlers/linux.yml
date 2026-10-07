@@ -1,4 +1,14 @@
 ---
+- name: Clear systemd failed state for mongod (avoid start-limit-hit)
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - reset-failed
+      - mongod
+  changed_when: false
+  failed_when: false
+  listen: Restart MongoDB
+
 - name: Restart MongoDB
   ansible.builtin.service:
     name: mongod
