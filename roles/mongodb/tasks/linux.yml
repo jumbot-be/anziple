@@ -204,12 +204,15 @@
       {{ 'requires authentication' in ((mongodb_admin_user_check.stderr | default('')) ~ (mongodb_admin_user_check.stdout | default(''))) }}
   changed_when: false
 
+- name: Set mongosh connection arguments for app database tasks
+  ansible.builtin.set_fact:
+    mongodb_tls_args: "{{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }}"
+    mongodb_auth_args: "{{ (mongodb_auth_active | bool) | ternary("-u '" ~ mongodb_admin_user ~ "' -p '" ~ mongodb_admin_password ~ "' --authenticationDatabase admin", '') }}"
+  changed_when: false
+
 - name: Reset application database (drop and recreate)
   ansible.builtin.shell: |
     mongosh --quiet --port 27017 {{ mongodb_tls_args }} {{ mongodb_auth_args }} --eval 'db = db.getSiblingDB("{{ mongodb_app_db_name }}"); db.dropDatabase(); db.createCollection("{{ mongodb_app_db_name }}");'
-  vars:
-    mongodb_tls_args: "{{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }}"
-    mongodb_auth_args: "{{ (mongodb_auth_active | bool) | ternary("-u '" ~ mongodb_admin_user ~ "' -p '" ~ mongodb_admin_password ~ "' --authenticationDatabase admin", '') }}"
   when: mongodb_app_db_reset | bool
   changed_when: true
   register: mongodb_app_db_reset_result
@@ -218,9 +221,10 @@
 - name: Ensure application database and collection exist
   ansible.builtin.shell: |
     mongosh --quiet --port 27017 {{ mongodb_tls_args }} {{ mongodb_auth_args }} --eval 'db = db.getSiblingDB("{{ mongodb_app_db_name }}"); if (!db.getCollectionNames().includes("{{ mongodb_app_db_name }}")) { db.createCollection("{{ mongodb_app_db_name }}"); print("CREATED"); } else { print("EXISTS"); }'
-  vars:
-    mongodb_tls_args: "{{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }}"
-    mongodb_auth_args: "{{ (mongodb_auth_active | bool) | ternary("-u '" ~ mongodb_admin_user ~ "' -p '" ~ mongodb_admin_password ~ "' --authenticationDatabase admin", '') }}"
+  when: not (mongodb_app_db_reset | bool)
+  register: mongodb_app_db_ensure
+  changed_when: "'CREATED' in mongodb_app_db_ensure.stdout"
+  failed_when: mongodb_app_db_ensure.rc != 0
   when: not (mongodb_app_db_reset | bool)
   register: mongodb_app_db_ensure
   changed_when: "'CREATED' in mongodb_app_db_ensure.stdout"
