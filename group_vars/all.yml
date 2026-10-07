@@ -60,6 +60,10 @@ mongodb_bind_ips: "127.0.0.1,{{ ansible_facts['default_ipv4']['address'] | defau
 customer_name: "jula"
 postgresql_version: "14"
 postgresql_admin_user: "adr_superadmin"
+postgresql_keycloak_db_name: "adr_keycloak_{{ customer_name }}"
+postgresql_keycloak_user: "adr_keycloak_user"
+postgresql_adr_db_name: "adr_{{ customer_name }}"
+postgresql_adr_customer_user: "adr_{{ customer_name }}"
 postgresql_enabled: false
 
 # RDS/External PostgreSQL - when postgresql_enabled is false but you want to use RDS
