@@ -288,6 +288,12 @@
 - name: Flush handlers to apply security configuration
   ansible.builtin.meta: flush_handlers
 
+- name: Wait for MongoDB to accept connections after restart
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 27017
+    timeout: 120
+
 - name: Verify connection without credentials must fail
   ansible.builtin.shell: |
     set -o pipefail

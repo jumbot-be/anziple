@@ -84,6 +84,12 @@
 - name: Flush handlers to apply security configuration
   ansible.builtin.meta: flush_handlers
 
+- name: Wait for MongoDB to accept connections after restart (Windows)
+  ansible.windows.win_wait_for:
+    host: 127.0.0.1
+    port: 27017
+    timeout: 120
+
 - name: Verify connection without credentials must fail (Windows)
   ansible.windows.win_shell: |
     $out = & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").runCommand({listDatabases: 1})' 2>&1 | Out-String
