@@ -206,8 +206,10 @@
 
 - name: Set mongosh connection arguments for app database tasks
   ansible.builtin.set_fact:
-    mongodb_tls_args: "{{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }}"
-    mongodb_auth_args: "{{ (mongodb_auth_active | bool) | ternary("-u '" ~ mongodb_admin_user ~ "' -p '" ~ mongodb_admin_password ~ "' --authenticationDatabase admin", '') }}"
+    mongodb_tls_args: >-
+      {{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }}
+    mongodb_auth_args: >-
+      {{ (mongodb_auth_active | bool) | ternary("-u '" ~ mongodb_admin_user ~ "' -p '" ~ mongodb_admin_password ~ "' --authenticationDatabase admin", '') }}
   changed_when: false
 
 - name: Reset application database (drop and recreate)
