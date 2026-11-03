@@ -117,6 +117,35 @@
 #       - nginx_verify_stat.stat.exists
 #     msg: "Nginx not found at {{ nginx_extract_path }}"
 
+- name: Create Systemd override directory for Nginx (Linux)
+  ansible.builtin.file:
+    path: /lib/systemd/system/nginx.service.d
+    state: directory
+    mode: '0755'
+
+- name: Deploy Systemd override for Nginx autorestart (Linux)
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      StartLimitIntervalSec=1800
+      StartLimitBurst=3
+
+      [Service]
+      Restart=on-failure
+      RestartSec=5s
+    dest: /lib/systemd/system/nginx.service.d/override.conf
+    mode: '0644'
+  notify: Reload Systemd
+
+- name: Clear systemd failed state for nginx (avoid start-limit-hit)
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - reset-failed
+      - nginx
+  changed_when: false
+  failed_when: false
+
 - name: Start and enable Nginx service (Linux)
   ansible.builtin.service:
     name: nginx

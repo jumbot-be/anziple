@@ -147,20 +147,90 @@
   args:
     creates: "{{ mongodb_pem_path }}"
 
+- name: Clear systemd failed state for mongod (avoid start-limit-hit)
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - reset-failed
+      - mongod
+  changed_when: false
+  failed_when: false
+
 - name: Ensure MongoDB is started for user creation (without auth)
   ansible.builtin.service:
     name: mongod
     state: started
     enabled: true
 
-- name: Create Admin User (handling no-auth bootstrap)
-  block:
-    - name: Try to create admin user (no auth)
-      ansible.builtin.shell: |
-        mongosh --port 27017 --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
-      register: mongodb_user_creation
-      failed_when: false
-      changed_when: "'Successfully added user' in mongodb_user_creation.stdout"
+- name: Wait for MongoDB to accept connections
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 27017
+    timeout: 120
+
+- name: Detect whether mongod currently requires TLS
+  ansible.builtin.shell: |
+    if mongosh --quiet --port 27017 --eval 'db.runCommand({ping: 1})' >/dev/null 2>&1; then
+      echo "plain"
+    elif mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.runCommand({ping: 1})' >/dev/null 2>&1; then
+      echo "tls"
+    else
+      echo "unreachable"
+    fi
+  register: mongodb_tls_mode
+  changed_when: false
+  failed_when: mongodb_tls_mode.stdout != 'plain' and mongodb_tls_mode.stdout != 'tls'
+
+- name: Check whether the admin user already exists (no-auth bootstrap)
+  ansible.builtin.shell: |
+    mongosh --quiet --port 27017 {{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }} --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
+  register: mongodb_admin_user_check
+  changed_when: false
+  failed_when: >-
+    mongodb_admin_user_check.rc != 0
+    and not ((mongodb_admin_user_check.stderr | default('')) ~ (mongodb_admin_user_check.stdout | default(''))) is search('requires authentication|authentication failed')
+
+- name: Create admin user (no-auth bootstrap)
+  ansible.builtin.shell: |
+    mongosh --quiet --port 27017 {{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }} --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
+  register: mongodb_user_creation
+  when: "'MISSING' in (mongodb_admin_user_check.stdout | default(''))"
+  changed_when: mongodb_user_creation.rc == 0
+  failed_when: mongodb_user_creation.rc != 0
+
+- name: Set whether authentication is currently active
+  ansible.builtin.set_fact:
+    mongodb_auth_active: >-
+      {{ 'requires authentication' in ((mongodb_admin_user_check.stderr | default('')) ~ (mongodb_admin_user_check.stdout | default(''))) }}
+  changed_when: false
+
+- name: Set mongosh connection arguments for app database tasks
+  ansible.builtin.set_fact:
+    mongodb_tls_args: >-
+      {{ (mongodb_tls_mode.stdout == 'tls') | ternary('--tls --tlsAllowInvalidCertificates', '') }}
+    mongodb_auth_args: >-
+      {{ (mongodb_auth_active | bool) | ternary("-u '" ~ mongodb_admin_user ~ "' -p '" ~ mongodb_admin_password ~ "' --authenticationDatabase admin", '') }}
+  changed_when: false
+
+- name: Reset application database (drop and recreate)
+  ansible.builtin.shell: |
+    mongosh --quiet --port 27017 {{ mongodb_tls_args }} {{ mongodb_auth_args }} --eval 'db = db.getSiblingDB("{{ mongodb_app_db_name }}"); db.dropDatabase(); db.createCollection("{{ mongodb_app_db_name }}");'
+  when: mongodb_app_db_reset | bool
+  changed_when: true
+  register: mongodb_app_db_reset_result
+  failed_when: mongodb_app_db_reset_result.rc != 0
+
+- name: Ensure application database and collection exist
+  ansible.builtin.shell: |
+    mongosh --quiet --port 27017 {{ mongodb_tls_args }} {{ mongodb_auth_args }} --eval 'db = db.getSiblingDB("{{ mongodb_app_db_name }}"); if (!db.getCollectionNames().includes("{{ mongodb_app_db_name }}")) { db.createCollection("{{ mongodb_app_db_name }}"); print("CREATED"); } else { print("EXISTS"); }'
+  when: not (mongodb_app_db_reset | bool)
+  register: mongodb_app_db_ensure
+  changed_when: "'CREATED' in mongodb_app_db_ensure.stdout"
+  failed_when: mongodb_app_db_ensure.rc != 0
+  when: not (mongodb_app_db_reset | bool)
+  register: mongodb_app_db_ensure
+  changed_when: "'CREATED' in mongodb_app_db_ensure.stdout"
+  failed_when: mongodb_app_db_ensure.rc != 0
 
 - name: Configure MongoDB with Authorization and TLS
   ansible.builtin.template:
@@ -218,9 +288,28 @@
 - name: Flush handlers to apply security configuration
   ansible.builtin.meta: flush_handlers
 
+- name: Wait for MongoDB to accept connections after restart
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 27017
+    timeout: 120
+
 - name: Verify connection without credentials must fail
   ansible.builtin.shell: |
-    mongosh --port 27017 --eval 'db.runCommand({connectionStatus : 1})'
+    set -o pipefail
+    out=$(mongosh --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").runCommand({listDatabases: 1})' 2>&1)
+    echo "$out"
+    case "$out" in
+      *"requires authentication"*|*"Unauthorized"*)
+        echo "AUTH_ENFORCED"
+        ;;
+      *)
+        echo "AUTH_NOT_ENFORCED"
+        exit 1
+        ;;
+    esac
+  args:
+    executable: /bin/bash
   register: mongodb_auth_test
-  failed_when: mongodb_auth_test.rc == 0
+  failed_when: mongodb_auth_test.rc != 0 or 'AUTH_NOT_ENFORCED' in mongodb_auth_test.stdout
   changed_when: false

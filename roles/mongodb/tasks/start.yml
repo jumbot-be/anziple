@@ -3,6 +3,16 @@
   ansible.builtin.include_tasks: setup.yml
   tags: [always]
 
+- name: Clear systemd failed state for mongod (Linux, avoid start-limit-hit)
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - reset-failed
+      - "{{ mongodb_service_name }}"
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['os_family'] != 'Windows'
+
 - name: Start MongoDB (Linux)
   ansible.builtin.service:
     name: "{{ mongodb_service_name }}"

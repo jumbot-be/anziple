@@ -3,7 +3,7 @@ all:
     # Set this to your internal network range for security
     allowed_network_range: "172.20.0.0/16"
     # MongoDB should bind to localhost and the internal IP
-    mongodb_bind_ips: "127.0.0.1,172.20.0.2"
+    mongodb_bind_ips: "127.0.0.1,172.20.100.218"
 
   children:
     backend_servers:

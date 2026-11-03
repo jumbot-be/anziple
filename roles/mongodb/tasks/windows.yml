@@ -41,12 +41,39 @@
     state: started
     start_mode: auto
 
-- name: Create Admin User (handling no-auth bootstrap Windows)
+- name: Wait for MongoDB to accept connections (Windows)
+  ansible.windows.win_wait_for:
+    host: 127.0.0.1
+    port: 27017
+    timeout: 120
+
+- name: Detect whether mongod currently requires TLS (Windows)
   ansible.windows.win_shell: |
-    & "C:\adr\MongoDB\bin\mongosh.exe" --port 27017 --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
+    if (& "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --eval 'db.runCommand({ping: 1}') { "plain" }
+      elseif (& "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.runCommand({ping: 1}') { "tls" }
+      else { "unreachable" }
+  register: mongodb_tls_mode_win
+  changed_when: false
+  failed_when: mongodb_tls_mode_win.stdout | trim not in ['plain', 'tls']
+
+- name: Check whether the admin user already exists (no-auth bootstrap Windows)
+  ansible.windows.win_shell: |
+    $tls = if ("{{ mongodb_tls_mode_win.stdout | trim }}" -eq "tls") { "--tls --tlsAllowInvalidCertificates" } else { "" }
+    & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 $tls --eval 'print(db.getSiblingDB("admin").getUser("{{ mongodb_admin_user }}") === null ? "MISSING" : "EXISTS")'
+  register: mongodb_admin_user_check_win
+  changed_when: false
+  failed_when: >-
+    mongodb_admin_user_check_win.rc != 0
+    and not ((mongodb_admin_user_check_win.stderr | default('')) ~ (mongodb_admin_user_check_win.stdout | default(''))) is search('requires authentication|authentication failed')
+
+- name: Create admin user (no-auth bootstrap Windows)
+  ansible.windows.win_shell: |
+    $tls = if ("{{ mongodb_tls_mode_win.stdout | trim }}" -eq "tls") { "--tls --tlsAllowInvalidCertificates" } else { "" }
+    & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 $tls --eval 'db.getSiblingDB("admin").createUser({user: "{{ mongodb_admin_user }}", pwd: "{{ mongodb_admin_password }}", roles: [{role: "root", db: "admin"}]})'
   register: mongodb_user_creation_win
-  failed_when: false
-  changed_when: "'Successfully added user' in mongodb_user_creation_win.stdout"
+  when: "'MISSING' in (mongodb_admin_user_check_win.stdout | default(''))"
+  changed_when: mongodb_user_creation_win.rc == 0
+  failed_when: mongodb_user_creation_win.rc != 0
 
 - name: Configure MongoDB with Authorization and TLS
   ansible.builtin.template:
@@ -57,11 +84,20 @@
 - name: Flush handlers to apply security configuration
   ansible.builtin.meta: flush_handlers
 
+- name: Wait for MongoDB to accept connections after restart (Windows)
+  ansible.windows.win_wait_for:
+    host: 127.0.0.1
+    port: 27017
+    timeout: 120
+
 - name: Verify connection without credentials must fail (Windows)
   ansible.windows.win_shell: |
-    & "C:\adr\MongoDB\bin\mongosh.exe" --port 27017 --eval 'db.runCommand({connectionStatus : 1})'
+    $out = & "C:\adr\MongoDB\bin\mongosh.exe" --quiet --port 27017 --tls --tlsAllowInvalidCertificates --eval 'db.getSiblingDB("admin").runCommand({listDatabases: 1})' 2>&1 | Out-String
+    Write-Output $out
+    if ($out -match 'requires authentication|Unauthorized') { "AUTH_ENFORCED" }
+    else { "AUTH_NOT_ENFORCED"; exit 1 }
   register: mongodb_auth_test_win
-  failed_when: mongodb_auth_test_win.rc == 0
+  failed_when: mongodb_auth_test_win.rc != 0 or 'AUTH_NOT_ENFORCED' in mongodb_auth_test_win.stdout
   changed_when: false
 
 - name: Configure Logrotation (Windows)
