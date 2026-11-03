@@ -1,6 +1,6 @@
 # MongoDB Configuration Defaults
-mongodb_admin_user: "ampacimonAdmin"
-mongodb_admin_password: "a very complex password please" # Override in Vault
+# mongodb_admin_user and mongodb_admin_password are defined in
+# group_vars/all_secrets.yml (vault).
 
 # Application database init
 mongodb_app_db_name: "ampacimon"
