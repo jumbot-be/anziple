@@ -1,6 +1,12 @@
 # MongoDB Configuration Defaults
 mongodb_admin_user: "ampacimonAdmin"
 mongodb_admin_password: "a very complex password please" # Override in Vault
+# MongoDB init scripts (JS) provided by the dev team, executed by
+# tasks/config.yml via config_databases.yml with admin credentials.
+# Paths on the target host, e.g. bundle resources/mongo/latest/*.js
+# (1-create-default-collection.js, 2-create-users-roles.js).
+mongodb_init_scripts: []
+
 mongodb_cert_subj: "/C=BE/ST=LIEGE/L=LIEGE/O=Ampacimon/OU=IT/emailAddress=sysadmin@ampacimon.com/CN={{ ansible_facts['fqdn'] }}"
 
 # OS specific paths

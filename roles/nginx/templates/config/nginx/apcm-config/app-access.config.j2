@@ -1,0 +1,12 @@
+#define ip that can access the main application and related api
+#allow 10.11.0.0/16; # my client ip range
+
+
+
+
+#give also access to admin users (us), this will include deny all;
+include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/admin-access.config;
+
+#give access to uptimerobot
+include {{ nginx_home_directory }}/{{ nginx_config_name }}-shared/uptimerobot.shared;
+

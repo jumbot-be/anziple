@@ -1,0 +1,25 @@
+---
+# Replaces _copy_static.sh (Linux branch).
+
+- name: Create static files directory
+  ansible.builtin.file:
+    path: "{{ static_files_folder }}"
+    state: directory
+    mode: '0755'
+    owner: www-data
+    group: www-data
+  tags: [nginx, config, static]
+
+- name: Deploy static files
+  ansible.builtin.copy:
+    src: "static/{{ item }}"
+    dest: "{{ static_files_folder }}/{{ item }}"
+    mode: '0644'
+    owner: www-data
+    group: www-data
+  loop:
+    - favicon.ico
+    - index.html
+    - error.html
+    - SofiaPro-Medium.woff
+  tags: [nginx, config, static]

@@ -1,0 +1,271 @@
+#
+#you should not edit this file manually it will be overwritten next upgrade
+#if you really need to please contact r&d
+#
+
+
+upstream {{ nginx_config_name }}_keycloak {
+  server {{ keycloak_host_fqdn }}:{{ keycloak_https_port }};
+}
+upstream {{ nginx_config_name }}_keycloak_management {
+  server {{ keycloak_host_fqdn }}:{{ keycloak_management_port }};
+}
+
+upstream {{ nginx_config_name }}_backend_adr {
+  server {{ adr_server_host_fqdn }}:{{ adr_server_https_port }};
+}
+
+upstream {{ nginx_config_name }}_frontend_adr {
+  server {{ adr_front_host_fqdn }}:{{ adr_front_https_port }};
+}
+
+upstream {{ nginx_config_name }}_facility_ratings {
+  server {{ facility_front_host_fqdn }}:{{ facility_front_https_port }};
+}
+
+limit_req_zone $binary_remote_addr zone={{ nginx_config_name }}restapi:10m rate={{ adr_api_rest_limit }};
+limit_req_zone $binary_remote_addr zone={{ nginx_config_name }}globallimit:10m rate={{ nginx_api_global_limit }};
+
+server {
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  http2 on;
+  limit_req zone={{ nginx_config_name }}globallimit burst=100 nodelay;
+
+  server_name {{ ext_host_fqdn }};
+  index index.html;
+
+  error_log {{ nginx_log_directory }}/{{ nginx_config_name }}.com_error.log info;
+  access_log {{ nginx_log_directory }}/{{ nginx_config_name }}.com_access.log combined;
+
+  include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/certificates.config;
+
+  ##
+  # Proxy Configuration
+  ##
+  proxy_http_version 1.1;
+  proxy_set_header   X-Real-IP          $remote_addr;
+  proxy_set_header   X-Forwarded-For    $proxy_add_x_forwarded_for;
+  proxy_set_header   X-Forwarded-Proto  $scheme;
+  proxy_set_header   X-Forwarded-Ssl    on;
+  proxy_set_header   Host               $server_name;
+  proxy_set_header   X-Forwarded-Host   $server_name;
+  proxy_cookie_domain ~.*$ $server_name;
+  proxy_max_temp_file_size 0;
+
+
+  # Disable gzip to avoid TLS attack vector
+  gzip off;
+  gzip_vary off;
+
+  large_client_header_buffers 4 10k;
+
+  error_page 400 402 404 406 407 408 409 410 411 412 413 414 415 416 417 418 421 422 423 424 425 426 428 429 431 451 500 501 502 503 504 505 507 /error.html;
+
+  include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/custom-rules.config;
+
+  set $cspNonce $request_id;
+  sub_filter NGINX_CSP_NONCE $cspNonce;
+  sub_filter_once off;
+
+  include {{ nginx_home_directory }}/{{ nginx_config_name }}-shared/security-headers.shared; #after nonce def
+
+  #asvs protect dangerous file from accidental publication
+  location ~* \.(tar|gz|tmp|dmp|bat|env|sh|log|txt|cfg|config|properties|jar|war|ear|key|py|pyc)$ {
+    deny all;
+  }
+
+  #### Static files
+  location = /error.html {
+    root  {{ static_files_folder }};
+  }
+
+  location = /index.html {
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-shared/security-headers.shared;
+    add_header Cache-Control "no-store, max-age=0";
+    root  {{ static_files_folder }};
+  }
+
+  location = /favicon.ico {
+    root  {{ static_files_folder }};
+  }
+
+  location = /SofiaPro-Medium.woff {
+    root  {{ static_files_folder }};
+  }
+
+
+  ####ADR
+
+  #support /adr without making a dangerous regex
+  location = /adr {
+    return 302 https://{{ ext_host_fqdn }}/adr/;
+  }
+  location ~ ^/(adr|apis|adr-hmi-api)/.*$ {
+
+    #unsafe inline style for graphs ...
+    set $template_csp "default-src 'self'; base-uri 'self'; font-src 'self' data:; script-src 'self' 'nonce-$cspNonce'; connect-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'self';  img-src 'self' a.tile.openstreetmap.org b.tile.openstreetmap.org c.tile.openstreetmap.org data:";
+    error_page 500 501 502 503 504 505 507  /error.html; #do not catch 4xx returned by apis !
+    if ($request_method !~ ^(POST|GET)$ ) {
+        return 405;
+    }
+    # upload of big files
+    proxy_read_timeout 120s;
+    client_max_body_size 16M;
+
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/app-access.config;
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_frontend_adr;
+    proxy_set_header Accept-Encoding ""; #disabling gzip to sub_filter it
+  }
+
+  #support /mui without making a dangerous regex
+  location = /mui {
+    return 302 https://{{ ext_host_fqdn }}/mui/;
+  }
+  location ~ ^/mui/.*$ {
+
+    #unsafe inline style for graphs ...
+    set $template_csp "default-src 'self'; base-uri 'self'; font-src 'self' data:; script-src 'self' 'nonce-$cspNonce'; connect-src 'self'; style-src 'self' 'nonce-$cspNonce'; object-src 'self';  img-src 'self' data:";
+    error_page 500 501 502 503 504 505 507  /error.html; #do not catch 4xx returned by apis !
+    if ($request_method !~ ^(POST|GET)$ ) {
+        return 405;
+    }
+
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/{{ nginx_mui_access }}-access.config; #rule list defined by profile
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_frontend_adr;
+    proxy_set_header Accept-Encoding ""; #disabling gzip to sub_filter it
+  }
+
+  location ~ ^/rest-api/.*$ {
+    error_page 507  /error.html; #do not catch errors returned by apis (using 507 to enable the directive)
+    limit_req zone={{ nginx_config_name }}restapi burst={{ adr_api_burst }} nodelay;
+    if ($request_method !~ ^(POST|GET)$ ) {
+        return 405;
+    }
+
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/api-access.config;
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_frontend_adr;
+  }
+
+  location ~ /public/[a-zA-Z0-9_]*\.[a-zA-Z0-9]*$ {
+    if ($request_method != GET ) {
+        return 405;
+    }
+
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-shared/security-headers.shared;
+    add_header Cache-Control "no-store, max-age=0";
+
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/app-access.config;
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_frontend_adr;
+  }
+
+  ####facility ratings
+
+
+  #support fr without making a dangerous regex
+  location = /facility-ratings {
+    return 302 https://{{ ext_host_fqdn }}/facility-ratings/;
+  }
+  location ~ ^/facility-ratings/.*$ {
+    error_page 507  /error.html; #do not catch errors returned by apis (using 507 to enable the directive)
+    set $template_csp "default-src 'self'; style-src 'self' 'unsafe-inline';  script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; img-src 'self' a.tile.openstreetmap.org b.tile.openstreetmap.org c.tile.openstreetmap.org data: blob:; object-src 'none'; connect-src 'self'; font-src 'self' data:; media-src 'none'";
+
+    set $template_xframeoptions SAMEORIGIN;
+    sub_filter '<base href="/">' '<base href="/facility-ratings/">';
+
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/app-access.config;
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_facility_ratings;
+  }
+
+
+  ####keycloak
+  # lock base realms (not critical but it's free)
+  location = /auth/realms/master/.well-known/openid-configuration {
+      return 404;
+  }
+  location = /auth/realms/apcm-realm/.well-known/openid-configuration {
+    set $publish {{ keycloak_publish_wellknown | ternary("true", "false") }}; #need to pass through a var
+    if ($publish = true){
+       proxy_pass https://{{ nginx_config_name }}_keycloak;
+    }
+    if ($publish != true){
+      return 404;
+    }
+
+  }
+
+  #support /auth/admin without making a dangerous regex
+  location = /auth/admin {
+    return 302 https://{{ ext_host_fqdn }}/auth/admin/;
+  }
+  # Allow IP Ampacimon only for admin console - Deny rest
+  location ~ ^/auth/admin/.*$ {
+    limit_req zone={{ nginx_config_name }}globallimit burst=200 nodelay;
+    set $template_xframeoption SAMEORIGIN;
+    set $template_csp "frame-src 'self'; base-uri 'self'; frame-ancestors 'self'; object-src 'none'";
+    proxy_read_timeout 45;
+    proxy_buffer_size          256k;
+    proxy_buffers              4 512k;
+
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/admin-access.config;
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_keycloak;
+  }
+
+
+  #support /auth without making a dangerous regex
+  location = /auth {
+    return 302 https://{{ ext_host_fqdn }}/auth/;
+  }
+  location ~ ^/auth/health {
+    limit_req zone={{ nginx_config_name }}globallimit burst=200 nodelay;
+    set $template_xframeoptions SAMEORIGIN;
+    set $template_csp "frame-src 'self'; base-uri 'self'; frame-ancestors 'self'; object-src 'none'";
+
+    #always include api and user they may not overlap!
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/app-access.config;
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/api-access.config;
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_keycloak_management;
+  }
+  location ~ ^/auth/.*$ {
+    limit_req zone={{ nginx_config_name }}globallimit burst=200 nodelay;
+    set $template_xframeoptions SAMEORIGIN;
+    set $template_csp "frame-src 'self'; base-uri 'self'; frame-ancestors 'self'; object-src 'none'";
+    proxy_buffer_size          256k;
+    proxy_buffers              4 512k;
+    proxy_buffering off;
+
+    #always include api and user they may not overlap!
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/app-access.config;
+    include {{ nginx_home_directory }}/{{ nginx_config_name }}-config/api-access.config;
+    {{ nginx_unknown_ip_behavior }}
+    proxy_pass https://{{ nginx_config_name }}_keycloak;
+  }
+
+  location /nginx_status {
+    stub_status;
+  }
+
+  ####landing page with app selection or main app
+
+  location / {
+    return 302 https://{{ ext_host_fqdn }}{{ nginx_root_path }};
+  }
+
+}
+
+server {
+  listen 80;
+  server_name {{ ext_host_fqdn }};
+  error_log {{ nginx_log_directory }}/{{ nginx_config_name }}.com_error.log info;
+  access_log {{ nginx_log_directory }}/{{ nginx_config_name }}.com_access.log combined;
+  location ~ /(.*) {
+      return 301 https://{{ ext_host_fqdn }}$request_uri;
+  }
+}

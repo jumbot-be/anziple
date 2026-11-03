@@ -1,3 +1,61 @@
-# Nginx specific configuration
+---
+# Nginx role defaults
+# Install-time variables (existing deploy/update playbooks)
 nginx_extract_dir: "apcm-nginx-bundle"
 nginx_port: 80
+
+# ============================================================
+# Configuration variables (used by tasks/config.yml via
+# playbook/config_nginx.yml). Token mapping (bundle
+# config.properties -> Ansible) is documented in MIGRATE.md.
+# ============================================================
+
+# Identity
+nginx_config_name: "ampacimon"
+
+# Paths
+nginx_home_directory: "/etc/nginx"
+nginx_log_directory: "/var/log/nginx"
+static_files_folder: "/var/www/{{ nginx_config_name }}"
+
+# Network / upstreams
+keycloak_host_fqdn: "localhost"
+keycloak_https_port: 8543
+keycloak_management_port: 9000
+adr_server_host_fqdn: "localhost"
+adr_server_https_port: 8181
+adr_front_host_fqdn: "localhost"
+adr_front_https_port: 8181
+facility_front_host_fqdn: "localhost"
+facility_front_https_port: 4949
+ext_host_fqdn: "localhost"
+
+# API rate limits
+adr_api_rest_limit: "20r/m"
+adr_api_burst: 20
+nginx_api_global_limit: "100r/s"
+
+# Access control behavior
+# Empty string for no IP filtering (on-prem), "deny all;" to lock unknown IPs.
+nginx_unknown_ip_behavior: "deny all;"
+nginx_mui_access: "admin"
+keycloak_publish_wellknown: false
+nginx_root_path: "/index.html"
+
+# Log export (maintenance cron)
+nginx_datadir: "ChangeMe"
+nginx_datadir_user: ""
+nginx_datadir_password: ""
+
+# SSL certificates
+# selfsigned | custom (provide nginx_ssl_cert_source/nginx_ssl_key_source)
+nginx_cert_type: "selfsigned"
+nginx_ssl_cert_source: ""
+nginx_ssl_key_source: ""
+nginx_cert_days: 3600
+
+# Maintenance cron (Linux)
+nginx_maintenance_user: "Scriptuser"
+nginx_maintenance_path: "/apcm-maintenance"
+nginx_cron_minute: "10"
+nginx_cron_hour: "0"

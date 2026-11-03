@@ -1,0 +1,48 @@
+apcm_version: 4.0.11
+payara_bundle_version: 5.82.0-4.0.11
+keycloak_bundle_version: 26.4-4.0.11
+nginx_bundle_version: 4.0.11
+keycloak_flavor: rh
+mongodb_version: 8.0.16
+
+artifacts:
+  adg_server:
+    name: apcm-adg-server-war-4.0.11.war
+    url: /opt/SOURCES/ADR-4.0.11/backend/apcm-adg-server-war-4.0.11.war
+    checksum: sha256:REPLACE_ME
+  apcm_server:
+    name: apcm-server-war-4.0.11.war
+    url: /opt/SOURCES/ADR-4.0.11/backend/apcm-server-war-4.0.11.war
+    checksum: sha256:REPLACE_ME
+  explorer_ear:
+    name: ampacimon-explorer-ear-4.0.11.ear
+    url: /opt/SOURCES/ADR-4.0.11/frontend/ampacimon-explorer-ear-4.0.11.ear
+    checksum: sha256:REPLACE_ME
+  rest_api:
+    name: ampacimon-rest-api-ms-4.0.11.war
+    url: /opt/SOURCES/ADR-4.0.11/frontend/ampacimon-rest-api-ms-4.0.11.war
+    checksum: sha256:REPLACE_ME
+  jdk_linux:
+    name: zulu17.66.19-ca-jdk17.0.19-linux_x64.tar.gz
+    url: /opt/SOURCES/ADR-4.0.11/jdk/front/zulu17.66.19-ca-jdk17.0.19-linux_x64.tar.gz
+    checksum: sha256:REPLACE_ME
+  jdk_windows:
+    name: zulu17.66.19-ca-jdk17.0.19-win_x64.zip
+    url: /opt/SOURCES/ADR-4.0.11/jdk/front/zulu17.66.19-ca-jdk17.0.19-win_x64.zip
+    checksum: sha256:REPLACE_ME
+  keycloak_rh:
+    name: REPLACE_ME
+    url: /opt/SOURCES/ADR-4.0.11/keycloak/REPLACE_ME
+    checksum: sha256:REPLACE_ME
+  keycloak_standard:
+    name: REPLACE_ME
+    url: /opt/SOURCES/ADR-4.0.11/keycloak/REPLACE_ME
+    checksum: sha256:REPLACE_ME
+  nginx:
+    name: apcm-nginx-bundle-4.0.11-nginx-bundle.zip
+    url: /opt/SOURCES/ADR-4.0.11/nginx/apcm-nginx-bundle-4.0.11-nginx-bundle.zip
+    checksum: sha256:REPLACE_ME
+  payara:
+    name: apcm-payara-bundle-5.82.0-4.0.11-payara-bundle.zip
+    url: /opt/SOURCES/ADR-4.0.11/payara/apcm-payara-bundle-5.82.0-4.0.11-payara-bundle.zip
+    checksum: sha256:REPLACE_ME

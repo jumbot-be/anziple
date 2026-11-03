@@ -869,34 +869,10 @@ Ces scripts sont filtrés par Ant (tokens de connexion `@...@`), puis exécutés
   when: ansible_facts['os_family'] != 'Windows'
   tags: [payara, database, mongo]
 
-# Alternative : créer les users via le module dédié (plus idempotent)
-- name: Ensure MongoDB application users exist
-  community.mongodb.mongodb_user:
-    login_host: "{{ mongodb_host }}"
-    login_port: "{{ mongodb_port }}"
-    login_user: "{{ mongodb_admin_user | default(omit) }}"
-    login_password: "{{ mongodb_admin_password | default(omit) }}"
-    database: "{{ mongo_database_name }}"
-    name: "{{ item.name }}"
-    password: "{{ item.password }}"
-    roles: "{{ item.roles }}"
-    state: present
-  loop:
-    - name: apcm-pho
-      password: "{{ vault_mongo_pho_password }}"
-      roles: readWrite
-    - name: apcm-adg
-      password: "{{ vault_mongo_adg_password }}"
-      roles: readWrite
-    - name: apcm-cms
-      password: "{{ vault_mongo_cms_password }}"
-      roles: readWrite
-    - name: apcm-hmi
-      password: "{{ vault_mongo_hmi_password }}"
-      roles: readWrite
-  no_log: true
-  when: ansible_facts['os_family'] != 'Windows'
-  tags: [payara, database, mongo]
+# NOTE : les users applicatifs MongoDB ne sont PAS créés inline par Ansible :
+# ils sont créés par les scripts JS fournis par l'équipe dev (exécutés ci-dessus).
+# Implémentation en place : roles/mongodb/tasks/config.yml exécute les scripts
+# listés dans `mongodb_init_scripts` avec les credentials admin (mongosh).
 
 # ============================================================
 # 2. PostgreSQL : exécution du script de création (hors RDS)
@@ -916,7 +892,8 @@ Ces scripts sont filtrés par Ant (tokens de connexion `@...@`), puis exécutés
   tags: [payara, database, postgres]
 
 # Note RDS : si `postgresql_rds_enabled: true`, la création des bases/users/grants
-# est déjà couverte par `roles/postgresql/tasks/rds.yml` — ne pas réexécuter le script SQL.
+# est couverte par `roles/postgresql/tasks/config_rds.yml` (playbook config_databases.yml)
+# — ne pas réexécuter le script SQL. Exception : le superadmin n'est jamais créé sur RDS.
 
 # ============================================================
 # 3. SQLServer (si backend MS-SQL requis)
@@ -943,13 +920,13 @@ ansible-galaxy collection install community.mongodb community.postgresql
 **Variables à définir** (Vault) :
 ```yaml
 # group_vars/all_secrets.yml
-vault_mongo_pho_password: "..."
-vault_mongo_adg_password: "..."
-vault_mongo_cms_password: "..."
-vault_mongo_hmi_password: "..."
 vault_postgresql_admin_password: "..."
 vault_mssql_admin_password: "..."
 ```
+
+**MongoDB** : les credentials des users applicatifs sont gérés dans les scripts JS
+fournis par les devs (tokens filtrés par Ansible ou injectés par le script) ;
+Ansible n'a besoin que du user admin (`mongodb_admin_password`, déjà en Vault).
 
 ---
 
@@ -1121,7 +1098,7 @@ phoenix_datadir_password: ""
   - [ ] `tasks/deploy_backend_cron.yml`
   - [ ] `tasks/init_databases.yml` (remplace l'exécution manuelle de `mongo/latest/*.js` et `sql/latest/**/*.sql`)
     - [ ] MongoDB : collection par défaut + users (pho, adg, cms, hmi)
-    - [ ] PostgreSQL : script `1-create-database-*.sql` (hors RDS)
+    - [ ] PostgreSQL : script `1-create-database-*.sql` (hors RDS ; provisioning users/dbs déjà migré vers `tasks/config*.yml`)
     - [ ] SQLServer : variante `-ms.sql` (si backend MS-SQL requis)
 
 - [ ] **Variables**
@@ -1136,7 +1113,7 @@ phoenix_datadir_password: ""
   - [ ] Tester avec PostgreSQL
   - [ ] Tester avec MongoDB
   - [ ] Tester l'initialisation MongoDB (collection + users) sur instance vide
-  - [ ] Tester l'initialisation PostgreSQL (script SQL) et vérifier le non-double-exécution avec `rds.yml`
+  - [ ] Tester l'initialisation PostgreSQL (script SQL) et vérifier le non-double-exécution avec `config_rds.yml`
   - [ ] Tester le clustering
   - [ ] Vérifier l'intégration avec Keycloak
 

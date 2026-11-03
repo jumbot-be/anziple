@@ -258,6 +258,21 @@ python3 scripts/generate_release_vars.py /opt/SOURCES/ADR-4.0.10/checksums > var
 cat checksums.txt | python3 scripts/generate_release_vars.py > vars/releases/3.3.1.yml
 ```
 
+### Adding a New Release (e.g. 4.0.11)
+
+1. Create `vars/releases/4.0.11.yml` (copy the structure from the closest release file and update names/checksums; checksums can be generated with `scripts/generate_release_vars.py`).
+2. Once the bundle artifacts are available locally, extract their sources into the git-ignored `TMP-CONFIG/` reference area for template conversion analysis:
+
+```bash
+# Extract all bundles for a release (nginx, payara, keycloak)
+./scripts/extract_bundle_sources.sh 4.0.11
+
+# Or a single bundle
+./scripts/extract_bundle_sources.sh 4.0.11 nginx
+```
+
+The script reads artifact paths from the release file and extracts each zip under `TMP-CONFIG/sources/<bundle>/<bundle-name>/`. Artifacts that are not yet available (or still marked `REPLACE_ME`) are skipped with a warning. `TMP-CONFIG/` is git-ignored: it is only a local working copy used to convert bundle configuration files into Jinja2 templates (see `MIGRATE.md`, `MIGRATE-PAYARA.md`, `MIGRATE-KEYCLOAK.md`).
+
 ### Keycloak Flavors
 The system supports two Keycloak distributions: Standard and Red Hat (RH).
 - `keycloak_flavor: "rh"` (default): Uses the Red Hat bundle.
@@ -291,6 +306,56 @@ Each application role now contains separate tasks in `tasks/`:
 - `stop.yml`: Stops the service.
 - `start.yml`: Starts the service.
 - `update.yml`: Full update cycle (Stop -> Backup -> Dependencies -> Installation -> Start).
+
+## Configuration Procedure (separate from install/update)
+
+Configuration is being split from installation and updates: the existing playbooks keep handling packages and middleware, while a dedicated `config_*` playbook series applies (and re-applies) component configuration. This allows validating each part independently, and re-running configuration alone after an update when only small settings changed.
+
+### 1. Full Configuration
+
+Applies configuration for all components, in dependency order (databases -> Keycloak -> Payara -> Nginx):
+
+```bash
+ansible-playbook config.yml --ask-vault-pass
+```
+
+*(This playbook calls `playbook/config_all.yml`)*
+
+### 2. Targeted Component Configuration
+
+Each component has its own configuration playbook:
+
+```bash
+ansible-playbook playbook/config_databases.yml --ask-vault-pass
+ansible-playbook playbook/config_keycloak.yml --ask-vault-pass
+ansible-playbook playbook/config_payara.yml --ask-vault-pass
+ansible-playbook playbook/config_nginx.yml --ask-vault-pass
+```
+
+### 3. Granular Validation with Tags
+
+Each configuration task is tagged, so a single part can be validated at a time:
+
+```bash
+# Only Nginx configuration
+ansible-playbook playbook/config_nginx.yml --ask-vault-pass --tags nginx
+
+# Only the database initialization part
+ansible-playbook playbook/config_databases.yml --ask-vault-pass --tags mongodb
+ansible-playbook playbook/config_databases.yml --ask-vault-pass --tags postgresql
+```
+
+Each role exposes a `tasks/config.yml` entry point (like the existing `update.yml`/`start.yml`/`stop.yml` pattern). The remaining components are implemented step by step (see `MIGRATE.md`, `MIGRATE-PAYARA.md`, `MIGRATE-KEYCLOAK.md`).
+
+### 4. Database Provisioning (implemented)
+
+`playbook/config_databases.yml` is the single provisioning entry point for databases, for BOTH local engines and RDS/external instances. Deploy/update only install and start the engines; users, databases, grants and ownership are provisioned here (idempotent, safe to re-run for a password rotation or a new user):
+
+- **PostgreSQL local** (`roles/postgresql/tasks/config_local_linux.yml` / `config_local_windows.yml`): super admin (local installs only), ADR customer user/database, Keycloak user/database.
+- **PostgreSQL RDS/external** (`roles/postgresql/tasks/config_rds.yml`): same application users/databases/grants against the RDS endpoint. **Exception: the super admin is never created on RDS — AWS provisions it at instance initialization.**
+- **MongoDB** (`roles/mongodb/tasks/config.yml`): executes the JS init scripts provided by the dev team (`mongodb_init_scripts`, e.g. the bundle's `1-create-default-collection.js` / `2-create-users-roles.js`) with admin credentials. Application users are created by those scripts, not inline. The admin user bootstrap stays in the install tasks (no-auth bootstrap requirement).
+
+Run order on a fresh environment: `deploy.yml` first (engines), then `config.yml` (provisioning + configuration). Keycloak/Payara connection pools require the databases to exist, hence databases run first in the config series.
 
 ## Administration and Maintenance
 
