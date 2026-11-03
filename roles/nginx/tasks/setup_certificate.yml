@@ -1,0 +1,148 @@
+---
+# Replaces _setup_certificate.sh (Linux branch). The interactive select
+# becomes the nginx_cert_type variable: selfsigned | custom.
+# - selfsigned: generate via openssl with the provided .cnf templates
+#   (IP-based if ext_host_fqdn is an IP, DNS-based otherwise), like the
+#   original script. Only generated when missing (idempotent).
+# - custom: copy cert/key provided via nginx_ssl_cert_source/_key_source.
+
+- name: Detect whether ext_host_fqdn is an IP address
+  ansible.builtin.set_fact:
+    nginx_ext_host_is_ip: "{{ ext_host_fqdn is match('^[0-9]{1,3}(\\.[0-9]{1,3}){1,3}$') }}"
+  tags: [nginx, config, cert]
+
+- name: Render IP-based openssl config (temporary)
+  ansible.builtin.template:
+    src: config/nginx/certs/default-cert-ip.cnf.j2
+    dest: "{{ nginx_home_directory }}/certs/default-cert-ip.cnf"
+    mode: '0600'
+    owner: root
+    group: root
+  when: nginx_ext_host_is_ip | bool
+  no_log: true
+  tags: [nginx, config, cert]
+
+- name: Render DNS-based openssl config (temporary)
+  ansible.builtin.template:
+    src: config/nginx/certs/default-cert-dns.cnf.j2
+    dest: "{{ nginx_home_directory }}/certs/default-cert-dns.cnf"
+    mode: '0600'
+    owner: root
+    group: root
+  when: not (nginx_ext_host_is_ip | bool)
+  no_log: true
+  tags: [nginx, config, cert]
+
+- name: Set openssl config path fact
+  ansible.builtin.set_fact:
+    nginx_config_tmp_cnf_dest: "{{ nginx_home_directory ~ '/certs/default-cert-' ~ (nginx_ext_host_is_ip | bool | ternary('ip', 'dns')) ~ '.cnf' }}"
+  tags: [nginx, config, cert]
+
+- name: Copy DH parameters (ffdhe2048.txt)
+  ansible.builtin.copy:
+    src: ffdhe2048.txt
+    dest: "{{ nginx_home_directory }}/ffdhe2048.txt"
+    mode: '0644'
+    owner: root
+    group: root
+  tags: [nginx, config, cert]
+
+- name: Check if a certificate already exists
+  ansible.builtin.stat:
+    path: "{{ nginx_home_directory }}/certs/apcm-cert.crt"
+  register: nginx_existing_cert
+  tags: [nginx, config, cert]
+
+- name: Generate self-signed certificate (IP-based)
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:2048
+      - -nodes
+      - -sha256
+      - -keyout
+      - "{{ nginx_home_directory }}/certs/apcm-cert.key"
+      - -out
+      - "{{ nginx_home_directory }}/certs/apcm-cert.crt"
+      - -days
+      - "{{ nginx_cert_days }}"
+      - -config
+      - "{{ nginx_config_tmp_cnf_dest }}"
+  when:
+    - nginx_cert_type == 'selfsigned'
+    - not nginx_existing_cert.stat.exists
+    - nginx_ext_host_is_ip | bool
+  no_log: true
+  tags: [nginx, config, cert]
+
+- name: Generate self-signed certificate (DNS-based)
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:2048
+      - -nodes
+      - -sha256
+      - -keyout
+      - "{{ nginx_home_directory }}/certs/apcm-cert.key"
+      - -out
+      - "{{ nginx_home_directory }}/certs/apcm-cert.crt"
+      - -days
+      - "{{ nginx_cert_days }}"
+      - -config
+      - "{{ nginx_config_tmp_cnf_dest }}"
+  when:
+    - nginx_cert_type == 'selfsigned'
+    - not nginx_existing_cert.stat.exists
+    - not (nginx_ext_host_is_ip | bool)
+  no_log: true
+  tags: [nginx, config, cert]
+
+- name: Deploy custom certificate
+  ansible.builtin.copy:
+    src: "{{ nginx_ssl_cert_source }}"
+    dest: "{{ nginx_home_directory }}/certs/apcm-cert.crt"
+    mode: '0644'
+    owner: root
+    group: root
+  when:
+    - nginx_cert_type == 'custom'
+    - nginx_ssl_cert_source | length > 0
+  tags: [nginx, config, cert]
+
+- name: Deploy custom key
+  ansible.builtin.copy:
+    src: "{{ nginx_ssl_key_source }}"
+    dest: "{{ nginx_home_directory }}/certs/apcm-cert.key"
+    mode: '0600'
+    owner: root
+    group: root
+  when:
+    - nginx_cert_type == 'custom'
+    - nginx_ssl_key_source | length > 0
+  tags: [nginx, config, cert]
+
+- name: Warn if custom certificate source is missing
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: nginx_cert_type is 'custom' but nginx_ssl_cert_source /
+      nginx_ssl_key_source is not set. Deploy the certificate manually to
+      {{ nginx_home_directory }}/certs/apcm-cert.crt and .key
+  when:
+    - nginx_cert_type == 'custom'
+    - nginx_ssl_cert_source | length == 0 or nginx_ssl_key_source | length == 0
+  tags: [nginx, config, cert]
+
+- name: Set certificate permissions
+  ansible.builtin.file:
+    path: "{{ nginx_home_directory }}/certs"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  tags: [nginx, config, cert]

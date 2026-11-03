@@ -1,0 +1,77 @@
+---
+# Replaces _copy_config.sh (Linux branch). The interactive select of the
+# script becomes: always overwrite (idempotent templates, backup kept).
+
+- name: Create nginx configuration directories
+  ansible.builtin.file:
+    path: "{{ nginx_home_directory }}/{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - "tcpconf.d"
+    - "sites-enabled"
+    - "{{ nginx_config_name }}-config"
+    - "{{ nginx_config_name }}-shared"
+    - "certs"
+  tags: [nginx, config, nginx_config]
+
+- name: Deploy nginx.conf
+  ansible.builtin.template:
+    src: config/nginx/conf/nginx.conf.j2
+    dest: "{{ nginx_home_directory }}/nginx.conf"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: true
+  tags: [nginx, config, nginx_config]
+
+- name: Deploy proxysocks.conf (tcp stream)
+  ansible.builtin.template:
+    src: config/nginx/tcpconf.d/proxysocks.conf.j2
+    dest: "{{ nginx_home_directory }}/tcpconf.d/proxysocks.conf"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: true
+  tags: [nginx, config, nginx_config]
+
+- name: Deploy main site configuration
+  ansible.builtin.template:
+    src: config/nginx/sites-enabled/ampacimon.conf.j2
+    dest: "{{ nginx_home_directory }}/sites-enabled/{{ nginx_config_name }}.conf"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: true
+  tags: [nginx, config, nginx_config]
+
+- name: Deploy apcm-shared configurations
+  ansible.builtin.template:
+    src: "config/nginx/apcm-shared/{{ item }}.j2"
+    dest: "{{ nginx_home_directory }}/{{ nginx_config_name }}-shared/{{ item }}"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: true
+  loop:
+    - security-headers.shared
+    - uptimerobot.shared
+  tags: [nginx, config, nginx_config]
+
+- name: Deploy apcm-config configurations
+  ansible.builtin.template:
+    src: "config/nginx/apcm-config/{{ item }}.j2"
+    dest: "{{ nginx_home_directory }}/{{ nginx_config_name }}-config/{{ item }}"
+    mode: '0644'
+    owner: root
+    group: root
+    backup: true
+  loop:
+    - certificates.config
+    - custom-rules.config
+    - app-access.config
+    - admin-access.config
+    - api-access.config
+  tags: [nginx, config, nginx_config]

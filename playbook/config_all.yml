@@ -1,0 +1,16 @@
+---
+- name: Configure all APCM components (databases, Keycloak, Payara, Nginx)
+  ansible.builtin.import_playbook: config_databases.yml
+  tags: [databases, config]
+
+- name: Configure Keycloak
+  ansible.builtin.import_playbook: config_keycloak.yml
+  tags: [keycloak, config]
+
+- name: Configure Payara
+  ansible.builtin.import_playbook: config_payara.yml
+  tags: [payara, config]
+
+- name: Configure Nginx
+  ansible.builtin.import_playbook: config_nginx.yml
+  tags: [nginx, config]

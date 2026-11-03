@@ -1,0 +1,12 @@
+---
+# Keycloak configuration tasks (run by playbook/config_keycloak.yml)
+# Replaces the bundle scripts: _copy_config.sh, _setup_certificate.sh,
+# _create-cronjob.sh / _create-schtask.ps1, realm import (see MIGRATE-KEYCLOAK.md)
+# Idempotent: safe to re-run to apply configuration changes.
+# TODO (migration): implement with Jinja2 templates and Ansible modules
+#   1. init_database.yml    - keycloak_db / keycloak_usr creation (if not RDS)
+#   2. deploy_config.yml    - keycloak.conf / standalone settings
+#   3. setup_certificate.yml - certificates + keystore import
+#   4. realm import          - apcm-realm-realm.json -> data/import/
+#   5. deploy_cron.yml       - scheduled tasks
+#   6. restart service + health check
