@@ -1,11 +1,8 @@
 ---
-# RDS/External PostgreSQL tasks (run during deploy).
-# Provisioning (users/databases/grants/ownership) has MOVED to
-# tasks/config_rds.yml, executed by playbook/config_databases.yml
-# via tasks/config.yml. This file now only performs deploy-time checks.
-#
-# EXCEPTION (RDS): the super admin is never created by this repository:
-# it is provisioned by AWS at instance initialization.
+# Configuration PostgreSQL pour AWS RDS (ou autre instance externe)
+# Ce fichier est exécuté quand postgresql_rds_enabled: true
+# Il ne fait PAS d'installation locale, mais configure les bases et utilisateurs sur l'hôte distant
+# Process: 1) Create users, 2) Create databases, 3) Grant privileges, 4) Set ownership
 
 - name: Set RDS facts
   ansible.builtin.set_fact:
@@ -13,15 +10,13 @@
     postgresql_rds_port: "{{ postgresql_rds_port | default(5432) }}"
   tags: [always]
 
-- name: Check RDS connectivity
+- name: Configure PostgreSQL Users and Databases on RDS
   when: postgresql_rds_hostname | trim != ''
   block:
-    - name: Wait for PostgreSQL port on RDS
-      ansible.builtin.wait_for:
-        host: "{{ postgresql_rds_hostname }}"
-        port: "{{ postgresql_rds_port }}"
-        state: started
-        timeout: 30
+    - name: Get available locales (for collation)
+      ansible.builtin.command: locale -a
+      register: available_locales
+      changed_when: false
       when: ansible_facts['os_family'] != 'Windows'
 
     - name: Set active collation fact

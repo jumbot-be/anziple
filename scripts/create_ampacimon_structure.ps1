@@ -1,10 +1,10 @@
 $rootDir = "C:\AMPACIMON"
 
 $paths = @(
-    "adr2",
-    "adr2\apcm-keycloak-bundle",
-    "adr2\apcm-nginx-bundle",
-    "adr2\apcm-payara-bundle",
+    "adr",
+    "adr\apcm-keycloak-bundle",
+    "adr\apcm-nginx-bundle",
+    "adr\apcm-payara-bundle",
     "csvFiles",
     "GitBash",
     "installFiles",
